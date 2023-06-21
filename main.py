@@ -1,4 +1,4 @@
-import signal, threading, sys, queue
+import signal, threading, sys, queue, os, msvcrt
 from ChatAPI import get_response_AI
 from TwitchAPI import CHAT_NICKNAME, initialize_socket, close_socket, listen_to_messages, send_message, get_twitch_oath_token
 import pygetwindow, pyautogui, pytesseract, time
@@ -9,9 +9,10 @@ listening_thread = None
 processing_thread = None
 audio_context_thread = None
 stop_event = threading.Event()
+print_event = threading.Event()
 
 message_count = 0
-TESTING = False
+TESTING = True
 
 #TODO add emote support
 #TODO prevent spamming
@@ -31,7 +32,19 @@ def main():
     initialize_socket()
     #send_intro()
     start_threads()
-    while True: pass
+    while True: 
+        # Check if there is input available on stdin
+        if msvcrt.kbhit():
+            print_event.clear()
+            user_input = input("Enter something: ")
+            handle_commands(user_input)
+        else:
+            # Clear the pause event to resume the worker thread
+            print_event.set()
+
+def handle_commands(input: str):
+    if input == "exit":
+        shutdown_handler(None, None)
 
 def send_intro():
     intro_message = f"Heylo, I'm back! And now with much better awareness! Most notably i'm now aware of what Libs recently said (yes i can listen now, but my memory isn't great and i'm not going to actively react). @Skylibs my operator did not have time to implement cooldowns, so if the chat is being spammed, tell me and i'll go into hibernation for a bit."
@@ -78,12 +91,15 @@ def process_messages():
         entry = message_queue.get()
         username = entry.get('username')
         message = entry.get('message')
-        print(f"Message: {message} | Username: {username} | Counter: {message_count}")
 
         if should_respond(username, message):
             send_response(username, message)
         else:
             message_count += 1
+
+        print_event.wait()
+        os.system('cls')
+        print(f"Counter: {message_count}")
 
 
 def should_respond(username: str, message: str):
@@ -112,16 +128,18 @@ def send_response(username: str, message: str):
 
 def shutdown_handler(signal, frame):
     stop_event.set()
-    print('Shutting down...')
+    print_event.set()
     
+    print('Shutting down...')
+
+    if processing_thread: processing_thread.join()
+    print('Processing thread stopped')
+
     if audio_context_thread: audio_context_thread.join()
     print('Audio context thread stopped')
 
     if listening_thread: listening_thread.join()
     print('Listening thread stopped')
-    
-    if processing_thread: processing_thread.join()
-    print('Processing thread stopped')
     
     close_socket()
     sys.exit(0)

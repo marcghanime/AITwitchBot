@@ -121,20 +121,27 @@ def reset_ip():
     }
     requests.post(url, headers=headers)
 
-
+# Remove unwanted charachters from the message
 def clean_message(message, username):
-    # Find links using regular expressions
-    links = re.findall(link_regex, message)
-    # Replace links with a placeholder
-    for link in links:
-        message = message.replace(link, '***')
-
-    # Remove unwanted charachters from the message
-    message = message.replace("@User", "").replace("@user", "").replace("\n", " ").replace("@LibsGPT", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace("LibsGPT:", "")
+    message = remove_mentions(message, username)
     message = remove_hashtags(message)
+    message = remove_links(message)
+    message = message.replace("\n", " ")
     return message
 
-def remove_hashtags(text):
+def remove_mentions(text: str, username: str):
+    text = text.replace("@User", "").replace("@user", "").replace("@LibsGPT", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace("LibsGPT:", "")
+    return text
+
+def remove_links(text: str):
+    links = re.findall(link_regex, text)
+    # Replace links with a placeholder
+    for link in links:
+        text = text.replace(link, '***')
+
+    return text
+
+def remove_hashtags(text: str):
     # Define the regex pattern to match hashtags
     pattern = r'#\w+'
 

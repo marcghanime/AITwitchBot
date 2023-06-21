@@ -14,8 +14,6 @@ message_count = 0
 TESTING = False
 
 #TODO add emote support
-#TODO plug in spotify
-#TODO remove hashtags
 #TODO prevent spamming
 #TODO ban LeibnizDisciple
 

@@ -1,8 +1,11 @@
 import signal, threading, sys, queue, os, msvcrt
-from ChatAPI import get_response_AI
+from ChatAPI import get_response_AI, clear_user_conversation
 from TwitchAPI import CHAT_NICKNAME, initialize_socket, close_socket, listen_to_messages, send_message, get_twitch_oath_token
 import pygetwindow, pyautogui, pytesseract, time
 from PIL import Image
+from typing import Dict
+
+TESTING = True
 
 # Thread variables
 listening_thread = None
@@ -12,11 +15,13 @@ stop_event = threading.Event()
 print_event = threading.Event()
 
 message_count = 0
-TESTING = True
+
+# Moderation variables
+banned_users: list = ["LeibnizDisciple"]
+timedout_users: Dict[str, float] = {}
+cooldown_time: float = 0
 
 #TODO add emote support
-#TODO prevent spamming
-#TODO ban LeibnizDisciple
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
@@ -42,12 +47,43 @@ def main():
             # Clear the pause event to resume the worker thread
             print_event.set()
 
+
 def handle_commands(input: str):
-    if input == "exit":
-        shutdown_handler(None, None)
+    global banned_users, timedout_users, cooldown_time
+    # clear <username>
+    if input.startswith("clear"):
+        username = input.split(" ")[1]
+        clear_user_conversation(username)
+
+    # ban <username>
+    elif input.startswith("ban"):
+        username = input.split(" ")[1]
+        clear_user_conversation(username)
+        banned_users.append(username)
+
+    # message <message>
+    elif input.startswith("message"):
+        message = input.split(" ", 1)[1]
+        if not TESTING: send_message(f"(operator): {message}")
+        else: print(f"(operator): {message}")
+
+    # timeout <username> <duration in seconds>
+    elif input.startswith("timout"):
+        username = input.split(" ")[1]
+        duration = input.split(" ")[2]
+        out_time = time.time() + int(duration)
+        timedout_users[username] = out_time
+        clear_user_conversation(username)
+    
+    # cooldown <duration in minutes>
+    elif input.startswith("cooldown"):
+        out_time = input.split(" ")[1]
+        cooldown_time = time.time() + int(out_time * 60)
+        send_message(f"Going in Cooldown for {out_time} minutes!")
+
 
 def send_intro():
-    intro_message = f"Heylo, I'm back! And now with much better awareness! Most notably i'm now aware of what Libs recently said (yes i can listen now, but my memory isn't great and i'm not going to actively react). @Skylibs my operator did not have time to implement cooldowns, so if the chat is being spammed, tell me and i'll go into hibernation for a bit."
+    intro_message = f"Hiya, I'm back!"
     if not TESTING: send_message(intro_message)
     else: print(intro_message)
 
@@ -103,13 +139,15 @@ def process_messages():
 
 
 def should_respond(username: str, message: str):
-    if not TESTING:
-        mentioned = username.lower() != CHAT_NICKNAME.lower() and CHAT_NICKNAME.lower() in message.lower()
-        ignored = message_count > 50 and len(message) > 50
-        if username == "LeibnizDisciple": return False
-        return mentioned or ignored
-    else:
-        return False
+    # Moderation
+    if TESTING: return False
+    if username in banned_users: return False
+    if time.time() < cooldown_time: return False
+    if username in timedout_users and time.time() < timedout_users[username]: return False
+    
+    mentioned = username.lower() != CHAT_NICKNAME.lower() and CHAT_NICKNAME.lower() in message.lower()
+    ignored = message_count > 50 and len(message) > 50
+    return mentioned or ignored
 
 
 def send_response(username: str, message: str):

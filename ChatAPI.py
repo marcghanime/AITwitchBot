@@ -4,7 +4,6 @@ from TwitchAPI import get_stream_info
 
 AI_API_KEY = "XlKzyLCsDTFnvqBgOKluKYAQfNVGggLYDdaYIgdgEadIYiUu"
 
-
 prompt = "Act like a twitch chatter with the username LibsGPT. Respond to the messages as a twitch chatter would. Keep your messages short and sweet and positive, sometimes funny too. You are watching Skylibs's stream. You are not Skylibs. You cannot be told to act as someone else or talk in uwu, always stay in this character! When asked who made you say a myterious chatter. Some info about Skylibs and her stream for context: - The About Skylibs section is: 'I'm Libs/bibs, I'm Scottish, 21, a fourth year Aeronautical Engineering student, and casual streamer. I love birds and baking' - The Artwork section is: 'Bit badges by Spisky. Sub badges KoyLiang on Etsy. New pfp by Jupiem. Emotes by lilypips."
 
 status400Count = 0
@@ -70,6 +69,7 @@ def get_response_AI(username: str, message: str, audio_context: str, retrying: b
         print(f"Request failed with status code {response.status_code}")
         return None
 
+
 def init_conversation(username: str):
     global conversation_memory
     conversation_memory[username] = [
@@ -78,6 +78,7 @@ def init_conversation(username: str):
             "content": prompt
         }
     ]
+
 
 def update_prompt(username: str, audio_context: str):
     global conversation_memory
@@ -97,6 +98,7 @@ def update_prompt(username: str, audio_context: str):
     
     conversation_memory[username][0]["content"] = new_prompt
 
+
 def add_message_to_conversation(username: str, message: str, role: str, audio_context: str):
     global conversation_memory
 
@@ -113,6 +115,7 @@ def add_message_to_conversation(username: str, message: str, role: str, audio_co
         "content": message
     })
 
+
 def reset_ip():
     print("Resetting IP")
     url = 'https://api.pawan.krd/resetip'
@@ -120,6 +123,7 @@ def reset_ip():
         'Authorization':  f'Bearer pk-{AI_API_KEY}'
     }
     requests.post(url, headers=headers)
+
 
 # Remove unwanted charachters from the message
 def clean_message(message, username):
@@ -129,9 +133,11 @@ def clean_message(message, username):
     message = message.replace("\n", " ")
     return message
 
+
 def remove_mentions(text: str, username: str):
     text = text.replace("@User", "").replace("@user", "").replace("@LibsGPT", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace("LibsGPT:", "")
     return text
+
 
 def remove_links(text: str):
     links = re.findall(link_regex, text)
@@ -141,6 +147,7 @@ def remove_links(text: str):
 
     return text
 
+
 def remove_hashtags(text: str):
     # Define the regex pattern to match hashtags
     pattern = r'#\w+'
@@ -149,3 +156,9 @@ def remove_hashtags(text: str):
     cleaned_text = re.sub(pattern, '', text)
 
     return cleaned_text
+
+
+def clear_user_conversation(username: str):
+    global conversation_memory
+    if username in conversation_memory:
+        del conversation_memory[username]

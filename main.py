@@ -8,7 +8,7 @@ from PIL import Image
 listening_thread = None
 processing_thread = None
 audio_context_thread = None
-running: bool = True
+stop_event = threading.Event()
 
 message_count = 0
 TESTING = False
@@ -42,10 +42,10 @@ def send_intro():
 
 
 def start_threads():
-    global listening_thread, processing_thread, running
+    global listening_thread, processing_thread, audio_context_thread
 
     print("Starting threads...")
-    listening_thread = threading.Thread(target=listen_to_messages, args=(message_queue, running))
+    listening_thread = threading.Thread(target=listen_to_messages, args=(message_queue, stop_event))
     listening_thread.daemon = True
     listening_thread.start()
 
@@ -62,7 +62,7 @@ def get_audio_context():
     path = "result.png"
     global audio_context
 
-    while running:
+    while not stop_event.is_set():
         titles = pygetwindow.getAllTitles()
         if "Live Caption" in titles:
             window = pygetwindow.getWindowsWithTitle("Live Caption")[0]
@@ -75,7 +75,7 @@ def get_audio_context():
 
 def process_messages():
     global message_count
-    while running:
+    while not stop_event.is_set():
         # get the next message from the queue (this will block until a message is available)
         entry = message_queue.get()
         username = entry.get('username')
@@ -113,8 +113,7 @@ def send_response(username: str, message: str):
 
 
 def shutdown_handler(signal, frame):
-    global running
-    running = False
+    stop_event.set()
     print('Shutting down...')
     
     if audio_context_thread: audio_context_thread.join()

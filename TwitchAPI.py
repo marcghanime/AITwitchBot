@@ -1,11 +1,11 @@
-import requests, socket, queue, re, datetime
+import requests, socket, queue, re, datetime, threading
 from emoji import demojize
 
 CLIENT_ID = "0n2wpprouphucbxx48ctqamgbfoiwc"
 CLIENT_SECRET = "mdsmfgeknu8iypsmpou7b5xzxj98id"
 TWITCH_API_ACCESS_TOKEN = ""
 
-TWITCH_CHANNEL = 'skylibs'
+TWITCH_CHANNEL = 'nmplol'
 
 CHAT_SERVER = 'irc.chat.twitch.tv'
 CHAT_PORT = 6667
@@ -28,8 +28,8 @@ def close_socket():
     sock.close()
 
 
-def listen_to_messages(message_queue: queue.Queue, running: bool):
-    while running:
+def listen_to_messages(message_queue: queue.Queue, stop_event: threading.Event):
+    while not stop_event.is_set():
         resp = sock.recv(2048).decode('utf-8')
         if resp.startswith('PING'):
             sock.send("PONG\n".encode('utf-8'))

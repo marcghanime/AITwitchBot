@@ -1,9 +1,10 @@
-import signal, threading, sys, queue, os, msvcrt
+import signal, threading, sys, queue, os, msvcrt, json
 from ChatAPI import get_response_AI, clear_user_conversation
-from TwitchAPI import CHAT_NICKNAME, initialize_socket, close_socket, listen_to_messages, send_message, get_twitch_oath_token
+from TwitchAPI import CHAT_NICKNAME, TWITCH_CHANNEL, initialize_twitch_api, close_socket, listen_to_messages, send_message, stop_listening_to_whispers
 import pygetwindow, pyautogui, pytesseract, time
 from PIL import Image
 from typing import Dict
+from uuid import UUID
 
 TESTING = True
 
@@ -17,12 +18,13 @@ print_event = threading.Event()
 message_count = 0
 
 # Moderation variables
+mod_list = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl", TWITCH_CHANNEL]
 banned_users: list = ["LeibnizDisciple"]
 timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
+command_help = "Must be Libs or a Mod, usage: !LibsGPT [command] [options] || timeout [username] [duration in seconds] | reset [username] | cooldown [duration in minutes] | ban [username] | unban [username]"
 
 #TODO add emote support
-#TODO add !commands
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
@@ -34,41 +36,45 @@ SLEEP_TIME = 2.5
 
 def main():
     signal.signal(signal.SIGINT, shutdown_handler)
-    get_twitch_oath_token()
-    initialize_socket()
-    #send_intro()
+    initialize_twitch_api(callback_whisper)
     start_threads()
+    #send_intro()
+
     while True: 
         # Check if there is input available on stdin
         if msvcrt.kbhit():
             print_event.clear()
             user_input = input("Enter something: ")
-            handle_commands(user_input)
+            handle_commands(user_input, external=False)
         else:
             # Clear the pause event to resume the worker thread
             print_event.set()
 
 
-def handle_commands(input: str):
+def handle_commands(input: str, external: bool = True):
     global banned_users, timedout_users, cooldown_time
     # clear <username> - clears the conversation memory with the given username
     if input.startswith("reset "):
         username = input.split(" ")[1]
         clear_user_conversation(username)
+        if not TESTING: send_message(f"Conversation with {username} has been reset.")
 
     # ban <username> - bans the user, so that the bot will not respond to them
     elif input.startswith("ban "):
         username = input.split(" ")[1]
         clear_user_conversation(username)
         banned_users.append(username)
+        if not TESTING: send_message(f"{username} will be ignored.")
 
     # unban <username> - unbans the user
     elif input.startswith("unban "):
         username = input.split(" ")[1]
-        banned_users.remove(username)
+        if username in banned_users:
+            banned_users.remove(username)
+            if not TESTING: send_message(f"{username} will no longer be ignored.")
 
     # op <message> - sends a message as the operator
-    elif input.startswith("op "):
+    elif input.startswith("op ") and not external:
         message = input.split(" ", 1)[1]
         if not TESTING: send_message(f"(operator): {message}")
         else: print(f"(operator): {message}")
@@ -80,12 +86,17 @@ def handle_commands(input: str):
         out_time = time.time() + int(duration)
         timedout_users[username] = out_time
         clear_user_conversation(username)
+        if not TESTING: send_message(f"{username} will be ignored for {duration} seconds.")
     
     # cooldown <duration in minutes> - puts the bot in cooldown for the given duration
     elif input.startswith("cooldown "):
         out_time = input.split(" ")[1]
         cooldown_time = time.time() + int(out_time * 60)
-        send_message(f"Going in Cooldown for {out_time} minutes!")
+        if not TESTING: send_message(f"Going in Cooldown for {out_time} minutes!")
+
+    # help - prints the help message
+    elif input.startswith("help"):
+        if not TESTING: send_message(command_help)
 
 
 def send_intro():
@@ -134,7 +145,12 @@ def process_messages():
         username = entry.get('username')
         message = entry.get('message')
 
-        if should_respond(username, message):
+        if message.startswith("!LibsGPT "):
+            if username.lower() in mod_list and not message.startswith("op "):
+                message = message.replace("!LibsGPT ", "")
+                handle_commands(message)
+
+        elif should_respond(username, message):
             send_response(username, message)
         else:
             message_count += 1
@@ -151,8 +167,8 @@ def should_respond(username: str, message: str):
     if time.time() < cooldown_time: return False
     if username in timedout_users and time.time() < timedout_users[username]: return False
     
-    mentioned = username.lower() != CHAT_NICKNAME.lower() and CHAT_NICKNAME.lower() in message.lower()
-    ignored = message_count > 50 and len(message) > 50
+    mentioned = username.lower() != CHAT_NICKNAME.lower() and CHAT_NICKNAME.lower() in message.lower() and not f"!{CHAT_NICKNAME.lower()}" in message.lower()
+    ignored = message_count > 75 and len(message) > 50
     return mentioned or ignored
 
 
@@ -170,6 +186,18 @@ def send_response(username: str, message: str):
         message_count = 0
 
 
+async def callback_whisper(uuid: UUID, data: dict) -> None:
+    try: 
+        data = json.loads(data.get("data"))
+        message = data["body"]
+        username = data["tags"]["login"]
+
+        if username.lower() in mod_list and not message.startswith("op "):
+            handle_commands(message)
+
+    except: return
+
+
 def shutdown_handler(signal, frame):
     stop_event.set()
     print_event.set()
@@ -184,6 +212,9 @@ def shutdown_handler(signal, frame):
 
     if listening_thread: listening_thread.join()
     print('Listening thread stopped')
+
+    stop_listening_to_whispers()
+    print('Whisper listener stopped')
     
     close_socket()
     sys.exit(0)

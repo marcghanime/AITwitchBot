@@ -22,6 +22,7 @@ timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
 
 #TODO add emote support
+#TODO add !commands
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
@@ -50,33 +51,38 @@ def main():
 
 def handle_commands(input: str):
     global banned_users, timedout_users, cooldown_time
-    # clear <username>
-    if input.startswith("clear"):
+    # clear <username> - clears the conversation memory with the given username
+    if input.startswith("reset "):
         username = input.split(" ")[1]
         clear_user_conversation(username)
 
-    # ban <username>
-    elif input.startswith("ban"):
+    # ban <username> - bans the user, so that the bot will not respond to them
+    elif input.startswith("ban "):
         username = input.split(" ")[1]
         clear_user_conversation(username)
         banned_users.append(username)
 
-    # message <message>
-    elif input.startswith("message"):
+    # unban <username> - unbans the user
+    elif input.startswith("unban "):
+        username = input.split(" ")[1]
+        banned_users.remove(username)
+
+    # op <message> - sends a message as the operator
+    elif input.startswith("op "):
         message = input.split(" ", 1)[1]
         if not TESTING: send_message(f"(operator): {message}")
         else: print(f"(operator): {message}")
 
-    # timeout <username> <duration in seconds>
-    elif input.startswith("timout"):
+    # timeout <username> <duration in seconds> - times out the bot for the given user
+    elif input.startswith("timout "):
         username = input.split(" ")[1]
         duration = input.split(" ")[2]
         out_time = time.time() + int(duration)
         timedout_users[username] = out_time
         clear_user_conversation(username)
     
-    # cooldown <duration in minutes>
-    elif input.startswith("cooldown"):
+    # cooldown <duration in minutes> - puts the bot in cooldown for the given duration
+    elif input.startswith("cooldown "):
         out_time = input.split(" ")[1]
         cooldown_time = time.time() + int(out_time * 60)
         send_message(f"Going in Cooldown for {out_time} minutes!")

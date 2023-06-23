@@ -19,15 +19,25 @@ message_count = 0
 
 # Moderation variables
 mod_list = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl", TWITCH_CHANNEL]
-banned_users: list = ["LeibnizDisciple"]
+banned_users: list = []
 timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
-command_help = "Must be Libs or a Mod, usage: !LibsGPT [command] [options] || timeout [username] [duration in seconds] | reset [username] | cooldown [duration in minutes] | ban [username] | unban [username]"
+command_help = "Must be Libs or a Mod, usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [duration in seconds] | reset [username] | cooldown [duration in minutes] | ban [username] | unban [username]"
 
 #TODO add emote support
+#TODO check username lower()
+#TODO persistent memory
+#TODO print thread
+#TODO spotify integration
+#TODO longer live captions
+#TODO add commands to prompt
+#TODO add slow mode commands
+
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
+IGNORED_MESSAGE_THRESHOLD = 50
+LENGTH_MESSAGE_THRESHOLD = 50
 
 # Audio context thread variables
 audio_context: str = ""
@@ -53,6 +63,9 @@ def main():
 
 def handle_commands(input: str, external: bool = True):
     global banned_users, timedout_users, cooldown_time
+    
+    input = input.lower().replace("!libsgpt ", "").replace("!libsgpt", "")
+    
     # clear <username> - clears the conversation memory with the given username
     if input.startswith("reset "):
         username = input.split(" ")[1]
@@ -73,12 +86,6 @@ def handle_commands(input: str, external: bool = True):
             banned_users.remove(username)
             if not TESTING: send_message(f"{username} will no longer be ignored.")
 
-    # op <message> - sends a message as the operator
-    elif input.startswith("op ") and not external:
-        message = input.split(" ", 1)[1]
-        if not TESTING: send_message(f"(operator): {message}")
-        else: print(f"(operator): {message}")
-
     # timeout <username> <duration in seconds> - times out the bot for the given user
     elif input.startswith("timout "):
         username = input.split(" ")[1]
@@ -94,15 +101,26 @@ def handle_commands(input: str, external: bool = True):
         cooldown_time = time.time() + int(out_time * 60)
         if not TESTING: send_message(f"Going in Cooldown for {out_time} minutes!")
 
-    # help - prints the help message
-    elif input.startswith("help"):
-        if not TESTING: send_message(command_help)
+    # op <message> - sends a message as the operator
+    elif input.startswith("op ") and not external:
+        message = input.split(" ", 1)[1]
+        if not TESTING: send_message(f"(operator): {message}")
+        else: print(f"(operator): {message}")
+
+    # set-imt <number> - sets the ignored message threshold    
+    elif input.startswith("set-imt ") and not external:
+        global IGNORED_MESSAGE_THRESHOLD
+        IGNORED_MESSAGE_THRESHOLD = int(input.split(" ")[1])
+
+    # set-lmt <number> - sets the length message threshold
+    elif input.startswith("set-lmt ") and not external:
+        global LENGTH_MESSAGE_THRESHOLD
+        LENGTH_MESSAGE_THRESHOLD = int(input.split(" ")[1])
 
 
 def send_intro():
     intro_message = f"Hiya, I'm back!"
     if not TESTING: send_message(intro_message)
-    else: print(intro_message)
 
 
 def start_threads():
@@ -145,13 +163,16 @@ def process_messages():
         username = entry.get('username')
         message = entry.get('message')
 
-        if message.startswith("!LibsGPT "):
-            if username.lower() in mod_list and not message.startswith("op "):
-                message = message.replace("!LibsGPT ", "")
-                handle_commands(message)
+        if message.lower().startswith("!libsgpt"):
+            if username in mod_list:
+                if message.lower() == "!libsgpt" and not TESTING:
+                    send_message(command_help)
+                else:
+                    handle_commands(message)
 
         elif should_respond(username, message):
             send_response(username, message)
+        
         else:
             message_count += 1
 
@@ -167,22 +188,18 @@ def should_respond(username: str, message: str):
     if time.time() < cooldown_time: return False
     if username in timedout_users and time.time() < timedout_users[username]: return False
     
-    mentioned = username.lower() != CHAT_NICKNAME.lower() and CHAT_NICKNAME.lower() in message.lower() and not f"!{CHAT_NICKNAME.lower()}" in message.lower()
-    ignored = message_count > 75 and len(message) > 50
+    mentioned = username != CHAT_NICKNAME.lower() and CHAT_NICKNAME.lower() in message.lower()
+    ignored = message_count > IGNORED_MESSAGE_THRESHOLD and len(message) > LENGTH_MESSAGE_THRESHOLD
     return mentioned or ignored
 
 
 def send_response(username: str, message: str):
     global message_count, audio_context
-    message = message.replace(f"@{CHAT_NICKNAME}", "").replace(f"@{CHAT_NICKNAME.lower()}", "")
-    ai_response = get_response_AI(username, f"@{username}: {message}", audio_context)
+    ai_response = get_response_AI(username, f"{username}: {message}", audio_context)
 
     if ai_response:
         bot_response = f"@{username} {ai_response}"
-
         if not TESTING: send_message(bot_response)
-        else: print(bot_response)
-        
         message_count = 0
 
 
@@ -192,7 +209,7 @@ async def callback_whisper(uuid: UUID, data: dict) -> None:
         message = data["body"]
         username = data["tags"]["login"]
 
-        if username.lower() in mod_list and not message.startswith("op "):
+        if username in mod_list:
             handle_commands(message)
 
     except: return

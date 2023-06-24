@@ -27,9 +27,10 @@ class TwitchAPI:
     twitch: Twitch = None
     pubsub: PubSub = None
     uuid: UUID = None
+    chat_history = []
     TESTING: bool = False
 
-    def __init__(self, config: Config, callback_whisper: Callable[[str, str], None], testing: bool):
+    def __init__(self, config: Config, callback_whisper: Callable[[str, str], None],  testing: bool):
         self.twitch_config = config
         self.TESTING = testing
         print("Initializing Twitch API...")
@@ -58,6 +59,11 @@ class TwitchAPI:
     def listen_to_messages(self, message_queue: queue.Queue, stop_event: threading.Event):
         while not stop_event.is_set():
             resp = self.sock.recv(2048).decode('utf-8')
+            
+            if ":tmi.twitch.tv NOTICE * :Login authentication failed" in resp:
+                print("Login authentication failed, refreshing user token...")
+                asyncio.run(self.init_twitch(force_refresh=True))
+
             if resp.startswith('PING'):
                 self.sock.send("PONG\n".encode('utf-8'))
 
@@ -68,7 +74,10 @@ class TwitchAPI:
                 messages = resp.split("\n")
                 for message in messages:
                     if len(message) > 0:
-                        message_queue.put(self.parse_message(message))
+                        parsed_message = self.parse_message(message)
+                        self.chat_history.append(f"{parsed_message['username']}: {parsed_message['message']}")
+                        if len(self.chat_history) > 10: self.chat_history.pop(0)
+                        message_queue.put(parsed_message)
 
 
     def parse_message(self, string: str):
@@ -127,10 +136,10 @@ class TwitchAPI:
         self.twitch_config.twitch_api_token = response.json()["access_token"]
 
 
-    async def init_twitch(self):
+    async def init_twitch(self, force_refresh: bool = False):
         self.twitch = Twitch(self.twitch_config.client_id, self.twitch_config.client_secret)
         
-        if self.twitch_config.user_token == "" or self.twitch_config.refresh_token == "":  
+        if self.twitch_config.user_token == "" or self.twitch_config.refresh_token == "" or force_refresh:  
             auth = UserAuthenticator(self.twitch, [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT], force_verify=False)
             self.twitch_config.user_token, self.twitch_config.refresh_token = await auth.authenticate()
 
@@ -155,6 +164,9 @@ class TwitchAPI:
             await self.pubsub.unlisten(self.uuid)
             self.pubsub.stop()
         if self.twitch: await self.twitch.close()
+
+    def get_chat_history(self):
+        return self.chat_history
 
 
 # def get_twitch_emotes():

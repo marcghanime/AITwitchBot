@@ -1,6 +1,5 @@
 import requests, json, re, time
 from TwitchAPI import TwitchAPI
-from typing import Dict
 from dataclasses import dataclass, field
 
 AI_API_KEY = "XlKzyLCsDTFnvqBgOKluKYAQfNVGggLYDdaYIgdgEadIYiUu"
@@ -92,12 +91,14 @@ class ChatAPI:
             game_name = stream_info.get("game_name")
             title = stream_info.get("title")
             viewer_count = stream_info.get("viewer_count")
-            tags = stream_info.get("tags")
             time_live = stream_info.get("time_live")
-            stream_info_string = f"- Stream info: Game: {game_name}, Title: {title}, Viewer Count: {viewer_count}, Tags: {tags}, Time Live: {time_live}"
+            stream_info_string = f"- Stream info: Game: {game_name}, Title: {title}, Viewer Count: {viewer_count}, Time Live: {time_live}"
         
-        caption = f"- The following are live captions of what Skylibs has recently said: {audio_context}"
-        new_prompt = prompt + stream_info_string + caption
+        twitch_chat_history = " | ".join(self.twitch_api.get_chat_history())
+        twitch_chat_history_string = f"- Recents messages in Twitch chat: {twitch_chat_history}"
+
+        caption = f"- Live captions of what Skylibs recently said: '{audio_context}'"
+        new_prompt = prompt + stream_info_string + caption + twitch_chat_history_string
         
         self.memory.conversations[username][0]["content"] = new_prompt
 

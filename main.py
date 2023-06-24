@@ -1,10 +1,11 @@
 import signal, threading, sys, queue, os, msvcrt, json
-from ChatAPI import get_response_AI, clear_user_conversation
-from TwitchAPI import CHAT_NICKNAME, TWITCH_CHANNEL, initialize_twitch_api, close_socket, listen_to_messages, send_message, stop_listening_to_whispers
+from ChatAPI import ChatAPI, Memory
+from TwitchAPI import TwitchAPI, Config
 import pygetwindow, pyautogui, pytesseract, time
 from PIL import Image
 from typing import Dict
 from uuid import UUID
+import dataclasses
 
 TESTING = True
 
@@ -18,21 +19,22 @@ print_event = threading.Event()
 message_count = 0
 
 # Moderation variables
-mod_list = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl", TWITCH_CHANNEL]
+mod_list = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl"]
 banned_users: list = []
 timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
 command_help = "Must be Libs or a Mod, usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [duration in seconds] | reset [username] | cooldown [duration in minutes] | ban [username] | unban [username]"
 
-#TODO add emote support
-#TODO check username lower()
-#TODO persistent memory
 #TODO print thread
+#TODO add emote support
 #TODO spotify integration
 #TODO longer live captions
-#TODO add commands to prompt
-#TODO add slow mode commands
+#TODO add commands to ai prompt
+#TODO add slow mode command
 
+
+twitch_api: TwitchAPI = None
+chat_api: ChatAPI = None
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
@@ -45,10 +47,20 @@ SLEEP_TIME = 2.5
 
 
 def main():
+    global twitch_api, chat_api
+    
     signal.signal(signal.SIGINT, shutdown_handler)
-    initialize_twitch_api(callback_whisper)
+    
+    # Twtich API
+    config: Config = load_config()
+    twitch_api = TwitchAPI(config, callback_whisper, testing=TESTING)
+    mod_list.append(config.twitch_channel)
+
+    # Chat API
+    memory: Memory = load_memory()
+    chat_api = ChatAPI(twitch_api, memory, testing=TESTING)
+    
     start_threads()
-    #send_intro()
 
     while True: 
         # Check if there is input available on stdin
@@ -66,25 +78,25 @@ def handle_commands(input: str, external: bool = True):
     
     input = input.lower().replace("!libsgpt ", "").replace("!libsgpt", "")
     
-    # clear <username> - clears the conversation memory with the given username
+    # reset <username> - clears the conversation memory with the given username
     if input.startswith("reset "):
         username = input.split(" ")[1]
-        clear_user_conversation(username)
-        if not TESTING: send_message(f"Conversation with {username} has been reset.")
+        chat_api.clear_user_conversation(username)
+        twitch_api.send_message(f"Conversation with {username} has been reset.")
 
     # ban <username> - bans the user, so that the bot will not respond to them
     elif input.startswith("ban "):
         username = input.split(" ")[1]
-        clear_user_conversation(username)
+        chat_api.clear_user_conversation(username)
         banned_users.append(username)
-        if not TESTING: send_message(f"{username} will be ignored.")
+        twitch_api.send_message(f"{username} will be ignored.")
 
     # unban <username> - unbans the user
     elif input.startswith("unban "):
         username = input.split(" ")[1]
         if username in banned_users:
             banned_users.remove(username)
-            if not TESTING: send_message(f"{username} will no longer be ignored.")
+            twitch_api.send_message(f"{username} will no longer be ignored.")
 
     # timeout <username> <duration in seconds> - times out the bot for the given user
     elif input.startswith("timout "):
@@ -92,20 +104,19 @@ def handle_commands(input: str, external: bool = True):
         duration = input.split(" ")[2]
         out_time = time.time() + int(duration)
         timedout_users[username] = out_time
-        clear_user_conversation(username)
-        if not TESTING: send_message(f"{username} will be ignored for {duration} seconds.")
+        chat_api.clear_user_conversation(username)
+        twitch_api.send_message(f"{username} will be ignored for {duration} seconds.")
     
     # cooldown <duration in minutes> - puts the bot in cooldown for the given duration
     elif input.startswith("cooldown "):
         out_time = input.split(" ")[1]
         cooldown_time = time.time() + int(out_time * 60)
-        if not TESTING: send_message(f"Going in Cooldown for {out_time} minutes!")
+        twitch_api.send_message(f"Going in Cooldown for {out_time} minutes!")
 
     # op <message> - sends a message as the operator
     elif input.startswith("op ") and not external:
         message = input.split(" ", 1)[1]
-        if not TESTING: send_message(f"(operator): {message}")
-        else: print(f"(operator): {message}")
+        twitch_api.send_message(f"(operator): {message}")
 
     # set-imt <number> - sets the ignored message threshold    
     elif input.startswith("set-imt ") and not external:
@@ -117,17 +128,25 @@ def handle_commands(input: str, external: bool = True):
         global LENGTH_MESSAGE_THRESHOLD
         LENGTH_MESSAGE_THRESHOLD = int(input.split(" ")[1])
 
+    elif input.startswith("test-msg ") and not external:
+        username = "testuser"
+        message = input.split(" ", 1)[1]
+        if TESTING: send_response(username, message)
+    
+    elif input == ("intro") and not external:
+        if not TESTING: send_intro()
+
 
 def send_intro():
     intro_message = f"Hiya, I'm back!"
-    if not TESTING: send_message(intro_message)
+    twitch_api.send_message(intro_message)
 
 
 def start_threads():
     global listening_thread, processing_thread, audio_context_thread
 
     print("Starting threads...")
-    listening_thread = threading.Thread(target=listen_to_messages, args=(message_queue, stop_event))
+    listening_thread = threading.Thread(target=twitch_api.listen_to_messages, args=(message_queue, stop_event))
     listening_thread.daemon = True
     listening_thread.start()
 
@@ -163,10 +182,13 @@ def process_messages():
         username = entry.get('username')
         message = entry.get('message')
 
-        if message.lower().startswith("!libsgpt"):
+        # this is for when the queue is empty and shutdown is called
+        if username == "admin" and message == "shutdown" and stop_event.is_set(): break
+            
+        elif message.lower().startswith("!libsgpt"):
             if username in mod_list:
-                if message.lower() == "!libsgpt" and not TESTING:
-                    send_message(command_help)
+                if message.lower() == "!libsgpt":
+                    twitch_api.send_message(command_help)
                 else:
                     handle_commands(message)
 
@@ -179,6 +201,7 @@ def process_messages():
         print_event.wait()
         os.system('cls')
         print(f"Counter: {message_count}")
+        print(f"{username}: {message}")
 
 
 def should_respond(username: str, message: str):
@@ -188,18 +211,18 @@ def should_respond(username: str, message: str):
     if time.time() < cooldown_time: return False
     if username in timedout_users and time.time() < timedout_users[username]: return False
     
-    mentioned = username != CHAT_NICKNAME.lower() and CHAT_NICKNAME.lower() in message.lower()
+    mentioned = username != twitch_api.twitch_config.bot_nickname.lower() and twitch_api.twitch_config.bot_nickname.lower() in message.lower()
     ignored = message_count > IGNORED_MESSAGE_THRESHOLD and len(message) > LENGTH_MESSAGE_THRESHOLD
     return mentioned or ignored
 
 
 def send_response(username: str, message: str):
     global message_count, audio_context
-    ai_response = get_response_AI(username, f"{username}: {message}", audio_context)
+    ai_response = chat_api.get_response_AI(username, f"{username}: {message}", audio_context)
 
     if ai_response:
         bot_response = f"@{username} {ai_response}"
-        if not TESTING: send_message(bot_response)
+        twitch_api.send_message(bot_response)
         message_count = 0
 
 
@@ -215,13 +238,56 @@ async def callback_whisper(uuid: UUID, data: dict) -> None:
     except: return
 
 
+def load_config() -> Config:
+    try:
+        with open("config.json", "r") as infile:
+            json_data = json.load(infile)
+            loaded_config = Config(**json_data)
+            return loaded_config
+
+    except FileNotFoundError:
+        print("Config file not found. Creating new config file...")    
+
+        with open ("config.json", "w") as outfile: json.dump(dataclasses.asdict(Config()), outfile, indent=4)
+        
+        print("Please fill out the config file and restart the bot.")
+        sys.exit(0)
+
+
+def save_config() -> None:
+    with open("config.json", "w") as outfile:
+        json.dump(dataclasses.asdict(twitch_api.twitch_config), outfile, indent=4)
+
+
+def load_memory() -> Memory:
+    try:
+        with open("memory.json", "r") as infile:
+            json_data = json.load(infile)
+            loaded_memory = Memory(**json_data)
+            return loaded_memory
+
+    except FileNotFoundError:
+        with open ("memory.json", "w") as outfile: json.dump(dataclasses.asdict(Memory()), outfile, indent=4)
+        with open("memory.json", "r") as infile:
+            json_data = json.load(infile)
+            loaded_memory = Memory(**json_data)
+            return loaded_memory
+
+
+def save_memory() -> None:
+    with open("memory.json", "w") as outfile:
+        json.dump(dataclasses.asdict(chat_api.memory), outfile, indent=4)
+
+
 def shutdown_handler(signal, frame):
     stop_event.set()
     print_event.set()
     
     print('Shutting down...')
 
-    if processing_thread: processing_thread.join()
+    if processing_thread: 
+        message_queue.put({"username": "admin", "message": "shutdown"})
+        processing_thread.join()
     print('Processing thread stopped')
 
     if audio_context_thread: audio_context_thread.join()
@@ -230,10 +296,17 @@ def shutdown_handler(signal, frame):
     if listening_thread: listening_thread.join()
     print('Listening thread stopped')
 
-    stop_listening_to_whispers()
+    twitch_api.stop_listening_to_whispers()
     print('Whisper listener stopped')
     
-    close_socket()
+    twitch_api.close_socket()
+
+    print('Saving config...')
+    save_config()
+
+    print('Saving memory...')
+    save_memory()
+
     sys.exit(0)
 
 

@@ -7,153 +7,160 @@ from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.types import AuthScope
 from twitchAPI.helper import first
 from uuid import UUID
+from dataclasses import dataclass
+
+@dataclass
+class Config:
+    client_id: str = ""
+    client_secret: str = ""
+    bot_nickname: str = ""
+    chat_server: str = ""
+    chat_port: int = 0
+    twitch_channel: str = ""
+    twitch_api_token: str = ""
+    user_token: str = ""
+    refresh_token: str = ""
 
 
-CLIENT_ID = "0n2wpprouphucbxx48ctqamgbfoiwc"
-CLIENT_SECRET = "mdsmfgeknu8iypsmpou7b5xzxj98id"
-TWITCH_API_ACCESS_TOKEN = ""
-USER_TOKEN = "" #could also get at https://twitchapps.com/tmi/
+class TwitchAPI:
+    twitch_config: Config = None
+    twitch: Twitch = None
+    pubsub: PubSub = None
+    uuid: UUID = None
+    TESTING: bool = False
 
-TWITCH_CHANNEL = 'skylibs'
-
-CHAT_SERVER = 'irc.chat.twitch.tv'
-CHAT_PORT = 6667
-CHAT_NICKNAME = 'LibsGPT'
-CHAT_CHANNEL = f'#{TWITCH_CHANNEL}'
-
-twitch: Twitch = None
-pubsub: PubSub = None
-uuid: UUID = None
-
-sock = socket.socket()
-regex = r'^:(?P<user>[a-zA-Z0-9_]{4,25})!\1@\1\.tmi\.twitch\.tv PRIVMSG #(?P<channel>[a-zA-Z0-9_]{4,25}) :(?P<message>.+)$'
+    def __init__(self, config: Config, callback_whisper: Callable[[str, str], None], testing: bool):
+        self.twitch_config = config
+        self.TESTING = testing
+        print("Initializing Twitch API...")
+        asyncio.run(self.init_twitch())
+        if config.twitch_api_token == "": self.get_twitch_oath_token()
+        self.initialize_socket()
+        asyncio.run(self.subscribe_to_whispers(callback_whisper))
+        print("Twitch API Initialized")
 
 
-def initialize_socket():
-    sock.connect((CHAT_SERVER, CHAT_PORT))
-    sock.send(f"PASS oauth:{USER_TOKEN}\n".encode('utf-8'))
-    sock.send(f"NICK {CHAT_NICKNAME}\n".encode('utf-8'))
-    sock.send(f"JOIN {CHAT_CHANNEL}\n".encode('utf-8'))
+    sock = socket.socket()
+    regex = r'^:(?P<user>[a-zA-Z0-9_]{4,25})!\1@\1\.tmi\.twitch\.tv PRIVMSG #(?P<channel>[a-zA-Z0-9_]{4,25}) :(?P<message>.+)$'
 
 
-def close_socket():
-    sock.close()
+    def initialize_socket(self):
+        self.sock.connect((self.twitch_config.chat_server, self.twitch_config.chat_port))
+        self.sock.send(f"PASS oauth:{self.twitch_config.user_token}\n".encode('utf-8'))
+        self.sock.send(f"NICK {self.twitch_config.bot_nickname}\n".encode('utf-8'))
+        self.sock.send(f"JOIN #{self.twitch_config.twitch_channel}\n".encode('utf-8'))
 
 
-def listen_to_messages(message_queue: queue.Queue, stop_event: threading.Event):
-    while not stop_event.is_set():
-        resp = sock.recv(2048).decode('utf-8')
-        if resp.startswith('PING'):
-            sock.send("PONG\n".encode('utf-8'))
-
-        elif resp.startswith(':tmi.twitch.tv') or resp.startswith(':libsgpt'):
-            pass
-
-        elif len(resp) > 0:
-            messages = resp.split("\n")
-            for message in messages:
-                if len(message) > 0:
-                    message_queue.put(parse_message(message))
+    def close_socket(self):
+        self.sock.close()
 
 
-def parse_message(string: str):
-    string = demojize(string)
-    match = re.match(regex, string)
-    user = ""
-    message = ""
+    def listen_to_messages(self, message_queue: queue.Queue, stop_event: threading.Event):
+        while not stop_event.is_set():
+            resp = self.sock.recv(2048).decode('utf-8')
+            if resp.startswith('PING'):
+                self.sock.send("PONG\n".encode('utf-8'))
 
-    if match:
-        user = match.group('user')
-        message = match.group('message').replace("\r", "")
+            elif resp.startswith(':tmi.twitch.tv') or resp.startswith(':libsgpt'):
+                pass
 
-    return {
-        'username': user,
-        'message': message
-    }
-
-
-def send_message(message: str):
-    sock.send(f"PRIVMSG {CHAT_CHANNEL} :{message}\n".encode('utf-8'))
+            elif len(resp) > 0:
+                messages = resp.split("\n")
+                for message in messages:
+                    if len(message) > 0:
+                        message_queue.put(self.parse_message(message))
 
 
-def get_stream_info():
-    url = 'https://api.twitch.tv/helix/streams'
-    params = {'user_login': [TWITCH_CHANNEL]}
-    headers = {
-        'Authorization': f'Bearer {TWITCH_API_ACCESS_TOKEN}',
-        'Client-Id': CLIENT_ID
-    }
+    def parse_message(self, string: str):
+        string = demojize(string)
+        match = re.match(self.regex, string)
+        user = ""
+        message = ""
 
-    response = requests.get(url, params=params, headers=headers)
-    
-    data = response.json()['data'][0]
-    game_name = data['game_name']
-    viewer_count = data['viewer_count']
-    title = data['title']
+        if match:
+            user = match.group('user')
+            message = match.group('message').replace("\r", "")
 
-    # Get live time
-    started_at = data['started_at']
-    total_seconds = (datetime.datetime.utcnow() - datetime.datetime.strptime(started_at, '%Y-%m-%dT%H:%M:%SZ')).total_seconds()
-    time_live = str(datetime.timedelta(seconds=total_seconds)).split('.')[0]
-    
-    return {
-        'game_name': game_name,
-        'viewer_count': viewer_count,
-        'title': title,
-        'time_live': time_live
-    }
+        return {
+            'username': user,
+            'message': message
+        }
 
 
-def initialize_twitch_api(callback_whisper: Callable[[UUID, dict], None]):
-    print("Initializing Twitch API...")
-    asyncio.run(get_user_oauth_token())
-    get_twitch_oath_token()
-    initialize_socket()
-    asyncio.run(subscribe_to_whispers(callback_whisper))
-    print("Twitch API Initialized")
+    def send_message(self, message: str):
+        if not self.TESTING:
+            self.sock.send(f"PRIVMSG #{self.twitch_config.twitch_channel} :{message}\n".encode('utf-8'))
 
 
-def get_twitch_oath_token():
-    global TWITCH_API_ACCESS_TOKEN
-    url = 'https://id.twitch.tv/oauth2/token'
-    params = {'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET, 'grant_type': 'client_credentials'}
-    response = requests.post(url, params=params)
-    TWITCH_API_ACCESS_TOKEN = response.json()["access_token"]
+    def get_stream_info(self):
+        url = 'https://api.twitch.tv/helix/streams'
+        params = {'user_login': [self.twitch_config.twitch_channel]}
+        headers = {
+            'Authorization': f'Bearer {self.twitch_config.twitch_api_token}',
+            'Client-Id': self.twitch_config.client_id
+        }
+
+        response = requests.get(url, params=params, headers=headers)
+        
+        data = response.json()['data'][0]
+        game_name = data['game_name']
+        viewer_count = data['viewer_count']
+        title = data['title']
+
+        # Get live time
+        started_at = data['started_at']
+        total_seconds = (datetime.datetime.utcnow() - datetime.datetime.strptime(started_at, '%Y-%m-%dT%H:%M:%SZ')).total_seconds()
+        time_live = str(datetime.timedelta(seconds=total_seconds)).split('.')[0]
+        
+        return {
+            'game_name': game_name,
+            'viewer_count': viewer_count,
+            'title': title,
+            'time_live': time_live
+        }
 
 
-async def get_user_oauth_token():
-    global twitch, USER_TOKEN
-    twitch = Twitch(CLIENT_ID, CLIENT_SECRET)
-    auth = UserAuthenticator(twitch, [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT], force_verify=False)
-    USER_TOKEN, refresh_token = await auth.authenticate()
-    await twitch.set_user_authentication(USER_TOKEN, [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT], refresh_token)
+    def get_twitch_oath_token(self):
+        url = 'https://id.twitch.tv/oauth2/token'
+        params = {'client_id': self.twitch_config.client_id, 'client_secret': self.twitch_config.client_secret, 'grant_type': 'client_credentials'}
+        response = requests.post(url, params=params)
+        self.twitch_config.twitch_api_token = response.json()["access_token"]
 
 
-def stop_listening_to_whispers():
-    asyncio.run(unsubscribe_from_whispers())
+    async def init_twitch(self):
+        self.twitch = Twitch(self.twitch_config.client_id, self.twitch_config.client_secret)
+        
+        if self.twitch_config.user_token == "" or self.twitch_config.refresh_token == "":  
+            auth = UserAuthenticator(self.twitch, [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT], force_verify=False)
+            self.twitch_config.user_token, self.twitch_config.refresh_token = await auth.authenticate()
+
+        await self.twitch.set_user_authentication(self.twitch_config.user_token, [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT], self.twitch_config.refresh_token)
 
 
-async def subscribe_to_whispers(callback_whisper: Callable[[UUID, dict], None]):
-    global twitch, pubsub, uuid
-
-    user = await first(twitch.get_users(logins=[CHAT_NICKNAME]))
-    # starting up PubSub
-    pubsub = PubSub(twitch)
-    pubsub.start()
-    # you can either start listening before or after you started pubsub.
-    uuid = await pubsub.listen_whispers(user.id, callback_whisper)
+    def stop_listening_to_whispers(self):
+        asyncio.run(self.unsubscribe_from_whispers())
 
 
-async def unsubscribe_from_whispers():
-    await pubsub.unlisten(uuid)
-    pubsub.stop()
-    await twitch.close()
+    async def subscribe_to_whispers(self, callback_whisper: Callable[[UUID, dict], None]):
+        user = await first(self.twitch.get_users(logins=[self.twitch_config.bot_nickname]))
+        # starting up PubSub
+        self.pubsub = PubSub(self.twitch)
+        self.pubsub.start()
+        # you can either start listening before or after you started pubsub.
+        self.uuid = await self.pubsub.listen_whispers(user.id, callback_whisper)
+
+
+    async def unsubscribe_from_whispers(self):
+        if self.pubsub: 
+            await self.pubsub.unlisten(self.uuid)
+            self.pubsub.stop()
+        if self.twitch: await self.twitch.close()
 
 
 # def get_twitch_emotes():
 #     url = f"https://api.twitch.tv/helix/chat/emotes/global"
 #     headers = {
-#         'Authorization': f'Bearer {TWITCH_API_ACCESS_TOKEN}',
+#         'Authorization': f'Bearer {twitch_config.twitch_api_token}',
 #         'Client-Id': CLIENT_ID
 #     }
 

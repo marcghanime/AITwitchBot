@@ -163,3 +163,4 @@ cython_debug/
 old/
 test.py
 result.png
+*.json

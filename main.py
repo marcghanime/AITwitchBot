@@ -14,7 +14,6 @@ listening_thread = None
 processing_thread = None
 audio_context_thread = None
 stop_event = threading.Event()
-print_event = threading.Event()
 
 message_count = 0
 
@@ -25,7 +24,6 @@ timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
 command_help = "Must be Libs or a Mod, usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [duration in seconds] | reset [username] | cooldown [duration in minutes] | ban [username] | unban [username]"
 
-#TODO print thread
 #TODO add emote support
 #TODO spotify integration
 #TODO longer live captions
@@ -61,16 +59,7 @@ def main():
     chat_api = ChatAPI(twitch_api, memory, testing=TESTING)
     
     start_threads()
-
-    while True: 
-        # Check if there is input available on stdin
-        if msvcrt.kbhit():
-            print_event.clear()
-            user_input = input("Enter something: ")
-            handle_commands(user_input, external=False)
-        else:
-            # Clear the pause event to resume the worker thread
-            print_event.set()
+    cli()
 
 
 def handle_commands(input: str, external: bool = True):
@@ -135,6 +124,9 @@ def handle_commands(input: str, external: bool = True):
     
     elif input == ("intro") and not external:
         if not TESTING: send_intro()
+    
+    elif input == ("exit") and not external:
+        shutdown_handler(None, None)
 
 
 def send_intro():
@@ -143,7 +135,7 @@ def send_intro():
 
 
 def start_threads():
-    global listening_thread, processing_thread, audio_context_thread
+    global listening_thread, processing_thread, audio_context_thread, cli_thread
 
     print("Starting threads...")
     listening_thread = threading.Thread(target=twitch_api.listen_to_messages, args=(message_queue, stop_event))
@@ -198,10 +190,23 @@ def process_messages():
         else:
             message_count += 1
 
-        print_event.wait()
-        os.system('cls')
-        print(f"Counter: {message_count}")
-        print(f"{username}: {message}")
+
+def cli():
+    old_message_count = message_count
+    old_token_count = chat_api.get_total_tokens()
+    print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()}")
+
+    while True: 
+    # Check if there is input available on stdin
+        if msvcrt.kbhit():
+            user_input = input("Enter something: ")
+            handle_commands(user_input, external=False)
+        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens():
+            os.system('cls')
+            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()}")
+            old_message_count = message_count
+            old_token_count = chat_api.get_total_tokens()
+            time.sleep(1)
 
 
 def should_respond(username: str, message: str):
@@ -281,8 +286,7 @@ def save_memory() -> None:
 
 def shutdown_handler(signal, frame):
     stop_event.set()
-    print_event.set()
-    
+
     print('Shutting down...')
 
     if processing_thread: 

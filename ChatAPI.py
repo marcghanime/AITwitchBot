@@ -162,3 +162,6 @@ class ChatAPI:
     def clear_user_conversation(self, username: str):
         if username in self.memory.conversations:
             del self.memory.conversations[username]
+
+    def get_total_tokens(self):
+        return self.memory.total_tokens

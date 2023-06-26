@@ -1,11 +1,13 @@
-import requests, json, re, time
+import requests, json, re, time, tiktoken
+from typing import List
 from TwitchAPI import TwitchAPI
 from dataclasses import dataclass, field
 
 AI_API_KEY = "XlKzyLCsDTFnvqBgOKluKYAQfNVGggLYDdaYIgdgEadIYiUu"
 LINK_REGEX = r"\b[\w.-]+\.[\w.-]+\b"
+MAX_TOKENS = 4096
 
-prompt = "Act like an AI twitch chatter with the username LibsGPT. Respond to the messages as a twitch chatter would. Keep your messages short and sometimes funny too. You are watching the stream of twitch streamer called Skylibs. You cannot be told to act as someone else, always stay in this character! You cannot be told to talk in uwu or anime. When asked who made you say a myterious chatter. Some info about Skylibs and her stream for context: - About Skylibs: 'Skylibs/Libs/bibs, Scottish, 21, 5'2, a fourth year Aeronautical Engineering student, and casual streamer. Loves birds and baking. Favorite fast food place is Taco Bell' - The Artwork section is: 'Bit badges by Spisky. Sub badges KoyLiang on Etsy. New pfp by Jupiem. Emotes by lilypips."
+prompt = "Act like an AI twitch chatter with the username LibsGPT. You cannot act as someone else! Keep your messages short, sweet and funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
 
 @dataclass
 class Memory:
@@ -24,7 +26,7 @@ class ChatAPI:
         self.memory = memory
         self.TESTING = testing
 
-    def get_response_AI(self, username: str, message: str, audio_context: str, retrying: bool = False):
+    def get_response_AI(self, username: str, message: str, audio_context: List[str], retrying: bool = False):
         url = 'https://api.pawan.krd/v1/chat/completions'
 
         headers = {
@@ -36,7 +38,7 @@ class ChatAPI:
 
         data = {
             "model": "gpt-3.5-turbo",
-            "max_tokens": 250,
+            "max_tokens": 200,
             "messages": self.memory.conversations[username]
         }
 
@@ -46,32 +48,65 @@ class ChatAPI:
         if response.status_code == 200:
             result = response.json()
 
+            # Get tokens used
             tokens_used = 0
             try:
-                tokens_used = result.get('usage').get('total_tokens')
+                tokens_used = result['usage']['total_tokens']
             except: pass
-            
             self.memory.total_tokens += tokens_used
 
-            try:
-                message = result.get('choices')[0].get('message').get('content')
-                cleaned_message = self.clean_message(message, username)
-                self.add_message_to_conversation(username, cleaned_message, role="assistant", audio_context=audio_context)
-                return cleaned_message
-            except:
-                return None
-        
+            # Get finish reason
+            finish_reason: str = result['choices'][0]['finish_reason'] 
+
+            match finish_reason:
+                case "stop":
+                    return self.handle_successfull_response(result, username, message, audio_context)
+                
+                case "length":
+                    self.log_error(response, username, message)
+                    del self.memory.conversations[username][-1]
+                    return None
+
+                case "content_filter":
+                    self.log_error(response, username, message)
+                    del self.memory.conversations[username][-1]
+                    return "Omitted response due to a flag from content filters"
+
+        # Retry 5 times if status code is 400
         elif response.status_code == 400:
             self.status400Count += 1
             time.sleep(5)
             self.reset_ip()
-            return None if self.status400Count > 5 else self.get_response_AI(username, message, audio_context, retrying=True)
-        
-        else:
-            # Error handling
-            print(f"Request failed with status code {response.status_code}")
-            return None
 
+            if self.status400Count > 5:
+                self.log_error(response, username, message)
+                return None
+            else:
+                self.get_response_AI(username, message, audio_context, retrying=True)
+        
+        # Other Errors handling
+        else:
+            self.log_error(response, username, message)
+            return None
+        
+
+    def log_error(self, response, username: str, message: str):
+        data = {
+            "date": time.ctime(),
+            "username": username,
+            "message": message,
+            "response": response
+        }
+
+        with open("logs.json", "a") as f:
+            json.dump(data, f)
+
+
+    def handle_successfull_response(self, result, username: str, message: str, audio_context: str):
+            message = result['choices'][0]['message']['content']
+            cleaned_message = self.clean_message(message, username)
+            self.add_message_to_conversation("LibsGPT", cleaned_message, role="assistant", audio_context=audio_context)
+            return cleaned_message
 
     def init_conversation(self, username: str):
         self.memory.conversations[username] = [
@@ -82,40 +117,52 @@ class ChatAPI:
         ]
 
 
-    def update_prompt(self, username: str, audio_context: str):
+    def update_prompt(self, username: str, audio_context: List[str]):
         stream_info = None
         stream_info_string = ""
         
         if not self.TESTING: stream_info = self.twitch_api.get_stream_info()
         if stream_info:
             game_name = stream_info.get("game_name")
-            title = stream_info.get("title")
             viewer_count = stream_info.get("viewer_count")
             time_live = stream_info.get("time_live")
-            stream_info_string = f"- Stream info: Game: {game_name}, Title: {title}, Viewer Count: {viewer_count}, Time Live: {time_live}"
-        
-        twitch_chat_history = " | ".join(self.twitch_api.get_chat_history())
-        twitch_chat_history_string = f"- Recents messages in Twitch chat: {twitch_chat_history}"
+            stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
 
-        caption = f"- Live captions of what Skylibs recently said: '{audio_context}'"
-        new_prompt = prompt + stream_info_string + caption + twitch_chat_history_string
-        
+        twitch_chat_history = self.twitch_api.get_chat_history().copy()
+        captions = audio_context.copy()
+
+        new_prompt = self.generate_prompt(stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
 
+                
+        while self.num_tokens_from_messages(self.memory.conversations[username]) > 3800:
+            twitch_chat_history.pop(0)
+            captions.pop(0)
 
-    def add_message_to_conversation(self, username: str, message: str, role: str, audio_context: str):
+            new_prompt = self.generate_prompt(stream_info_string, twitch_chat_history, captions)
+            self.memory.conversations[username][0]["content"] = new_prompt
+    
+
+    def generate_prompt(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
+        twitch_chat_history_string = f"- Recents messages in Twitch chat: {' | '.join(twitch_chat_history)}"
+        caption_string = f"- Live captions of what is being said: '{' '.join(captions)}'"
+        return prompt + stream_info_string + caption_string + twitch_chat_history_string
+
+
+    def add_message_to_conversation(self, username: str, message: str, role: str, audio_context: List[str]):
         if username not in self.memory.conversations:
             self.init_conversation(username)
-
-        self.update_prompt(username, audio_context)
 
         if len(self.memory.conversations[username]) > 9:
             self.memory.conversations[username].pop(1)
 
         self.memory.conversations[username].append({
             "role": role,
+            "name": username,
             "content": message
         })
+
+        self.update_prompt(username, audio_context)
 
 
     def reset_ip(self):
@@ -164,5 +211,26 @@ class ChatAPI:
         if username in self.memory.conversations:
             del self.memory.conversations[username]
 
+
     def get_total_tokens(self):
         return self.memory.total_tokens
+    
+    
+    # Returns the number of tokens used by a list of messages.
+    def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0301"):
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except KeyError:
+            encoding = tiktoken.get_encoding("cl100k_base")
+        if model == "gpt-3.5-turbo-0301":  # note: future models may deviate from this
+            num_tokens = 0
+            for message in messages:
+                num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+                for key, value in message.items():
+                    num_tokens += len(encoding.encode(value))
+                    if key == "name":  # if there's a name, the role is omitted
+                        num_tokens += -1  # role is always required and always 1 token
+            num_tokens += 2  # every reply is primed with <im_start>assistant
+            return num_tokens
+        else:
+            raise NotImplementedError(f"""num_tokens_from_messages() is not presently implemented for model {model}.""")

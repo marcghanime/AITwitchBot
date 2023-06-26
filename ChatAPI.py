@@ -1,6 +1,7 @@
 import requests, json, re, time, tiktoken
 from typing import List
 from TwitchAPI import TwitchAPI
+from AudioAPI import AudioAPI
 from dataclasses import dataclass, field
 
 AI_API_KEY = "XlKzyLCsDTFnvqBgOKluKYAQfNVGggLYDdaYIgdgEadIYiUu"
@@ -17,16 +18,18 @@ class Memory:
 
 class ChatAPI:
     twitch_api: TwitchAPI = None
+    audio_api: AudioAPI = None
     memory: Memory = None
     status400Count = 0
     TESTING: bool = False
 
-    def __init__(self, twitch_api: TwitchAPI, memory: Memory, testing: bool):
+    def __init__(self, memory: Memory, twitch_api: TwitchAPI, audio_api: AudioAPI, testing: bool):
         self.twitch_api = twitch_api
+        self.audio_api = audio_api
         self.memory = memory
         self.TESTING = testing
 
-    def get_response_AI(self, username: str, message: str, audio_context: List[str], retrying: bool = False):
+    def get_response_AI(self, username: str, message: str, retrying: bool = False):
         url = 'https://api.pawan.krd/v1/chat/completions'
 
         headers = {
@@ -34,7 +37,7 @@ class ChatAPI:
             'Content-Type': 'application/json'
         }
 
-        if not retrying: self.add_message_to_conversation(username, message, role="user", audio_context=audio_context)
+        if not retrying: self.add_message_to_conversation(username, message, role="user")
 
         data = {
             "model": "gpt-3.5-turbo",
@@ -60,7 +63,7 @@ class ChatAPI:
 
             match finish_reason:
                 case "stop":
-                    return self.handle_successfull_response(result, username, message, audio_context)
+                    return self.handle_successfull_response(result, username, message)
                 
                 case "length":
                     self.log_error(response, username, message)
@@ -82,7 +85,7 @@ class ChatAPI:
                 self.log_error(response, username, message)
                 return None
             else:
-                self.get_response_AI(username, message, audio_context, retrying=True)
+                self.get_response_AI(username, message, retrying=True)
         
         # Other Errors handling
         else:
@@ -102,10 +105,10 @@ class ChatAPI:
             json.dump(data, f)
 
 
-    def handle_successfull_response(self, result, username: str, message: str, audio_context: str):
+    def handle_successfull_response(self, result, username: str, message: str):
             message = result['choices'][0]['message']['content']
             cleaned_message = self.clean_message(message, username)
-            self.add_message_to_conversation("LibsGPT", cleaned_message, role="assistant", audio_context=audio_context)
+            self.add_message_to_conversation("LibsGPT", cleaned_message, role="assistant")
             return cleaned_message
 
     def init_conversation(self, username: str):
@@ -117,7 +120,7 @@ class ChatAPI:
         ]
 
 
-    def update_prompt(self, username: str, audio_context: List[str]):
+    def update_prompt(self, username: str):
         stream_info = None
         stream_info_string = ""
         
@@ -129,7 +132,7 @@ class ChatAPI:
             stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
 
         twitch_chat_history = self.twitch_api.get_chat_history().copy()
-        captions = audio_context.copy()
+        captions = self.audio_api.get_audio_context.copy()
 
         new_prompt = self.generate_prompt(stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
@@ -149,7 +152,7 @@ class ChatAPI:
         return prompt + stream_info_string + caption_string + twitch_chat_history_string
 
 
-    def add_message_to_conversation(self, username: str, message: str, role: str, audio_context: List[str]):
+    def add_message_to_conversation(self, username: str, message: str, role: str):
         if username not in self.memory.conversations:
             self.init_conversation(username)
 
@@ -162,7 +165,7 @@ class ChatAPI:
             "content": message
         })
 
-        self.update_prompt(username, audio_context)
+        self.update_prompt(username)
 
 
     def reset_ip(self):

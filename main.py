@@ -1,11 +1,9 @@
-import signal, threading, sys, queue, os, msvcrt, json
+import signal, threading, sys, queue, os, msvcrt, json, time, dataclasses
 from ChatAPI import ChatAPI, Memory
 from TwitchAPI import TwitchAPI, Config
-import pygetwindow, pyautogui, pytesseract, time
-from PIL import Image
-from typing import Dict, List
+from AudioAPI import AudioAPI
+from typing import Dict
 from uuid import UUID
-import dataclasses
 
 TESTING = True
 
@@ -22,29 +20,25 @@ mod_list = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd",
 banned_users: list = []
 timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
-command_help = "Must be Libs or a Mod, usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [duration in seconds] | reset [username] | cooldown [duration in minutes] | ban [username] | unban [username]"
+command_help = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username]"
 
 #TODO add emote support
 #TODO spotify integration
-#TODO longer live captions
 #TODO add slow mode command
 
 
 twitch_api: TwitchAPI = None
 chat_api: ChatAPI = None
+audio_api: AudioAPI = None
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
 IGNORED_MESSAGE_THRESHOLD = 50
 LENGTH_MESSAGE_THRESHOLD = 50
 
-# Audio context thread variables
-audio_context: List[str] = []
-SLEEP_TIME = 2.5
-
 
 def main():
-    global twitch_api, chat_api
+    global twitch_api, chat_api, audio_api
     
     signal.signal(signal.SIGINT, shutdown_handler)
     
@@ -53,9 +47,12 @@ def main():
     twitch_api = TwitchAPI(config, callback_whisper, testing=TESTING)
     mod_list.append(config.twitch_channel)
 
+    # Audio API
+    audio_api = AudioAPI()
+
     # Chat API
     memory: Memory = load_memory()
-    chat_api = ChatAPI(twitch_api, memory, testing=TESTING)
+    chat_api = ChatAPI(memory, twitch_api, audio_api, TESTING)
     
     start_threads()
     cli()
@@ -116,6 +113,7 @@ def handle_commands(input: str, external: bool = True):
         global LENGTH_MESSAGE_THRESHOLD
         LENGTH_MESSAGE_THRESHOLD = int(input.split(" ")[1])
 
+    # test-msg <message> - sends a message as the test user
     elif input.startswith("test-msg ") and not external:
         username = "testuser"
         message = input.split(" ", 1)[1]
@@ -134,7 +132,7 @@ def send_intro():
 
 
 def start_threads():
-    global listening_thread, processing_thread, audio_context_thread, cli_thread
+    global listening_thread, processing_thread, audio_context_thread
 
     print("Starting threads...")
     listening_thread = threading.Thread(target=twitch_api.listen_to_messages, args=(message_queue, stop_event))
@@ -145,24 +143,9 @@ def start_threads():
     processing_thread.daemon = True
     processing_thread.start()
 
-    audio_context_thread = threading.Thread(target=get_audio_context)
+    audio_context_thread = threading.Thread(target=audio_api.listen_to_audio, args=(stop_event,))
     audio_context_thread.daemon = True
     audio_context_thread.start()
-
-
-def get_audio_context():
-    path = "result.png"
-    global audio_context
-
-    while not stop_event.is_set():
-        titles = pygetwindow.getAllTitles()
-        if "Live Caption" in titles:
-            window = pygetwindow.getWindowsWithTitle("Live Caption")[0]
-            left, top = window.topleft
-            pyautogui.screenshot(path, region=(left + 20, top + 40, window.width - 40, window.height - 80))
-            text: str = pytesseract.image_to_string(Image.open(path))
-            audio_context = text.splitlines()
-            time.sleep(SLEEP_TIME)
 
 
 def process_messages():
@@ -192,7 +175,9 @@ def process_messages():
 def cli():
     old_message_count = message_count
     old_token_count = chat_api.get_total_tokens()
-    print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()}")
+
+    os.system('cls')
+    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}")
 
     while True: 
     # Check if there is input available on stdin
@@ -220,8 +205,8 @@ def should_respond(username: str, message: str):
 
 
 def send_response(username: str, message: str):
-    global message_count, audio_context
-    ai_response = chat_api.get_response_AI(username, message, audio_context)
+    global message_count
+    ai_response = chat_api.get_response_AI(username, message)
 
     if ai_response:
         bot_response = f"@{username} {ai_response}"

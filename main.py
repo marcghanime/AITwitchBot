@@ -20,11 +20,11 @@ mod_list = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd",
 banned_users: list = []
 timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
-command_help = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username]"
+slow_mode_seconds: float = 0
+command_help = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
 
 #TODO add emote support
 #TODO spotify integration
-#TODO add slow mode command
 
 
 twitch_api: TwitchAPI = None
@@ -59,7 +59,7 @@ def main():
 
 
 def handle_commands(input: str, external: bool = True):
-    global banned_users, timedout_users, cooldown_time
+    global banned_users, timedout_users, cooldown_time, slow_mode_seconds
     
     input = input.lower().replace("!libsgpt ", "").replace("!libsgpt", "")
     
@@ -97,6 +97,12 @@ def handle_commands(input: str, external: bool = True):
         out_time = input.split(" ")[1]
         cooldown_time = time.time() + int(out_time * 60)
         twitch_api.send_message(f"Going in Cooldown for {out_time} minutes!")
+
+    # slowmode <duration in seconds> - sets the slow mode for the bot
+    elif input.startswith("slowmode "):
+        sleep_time = input.split(" ")[1]
+        slow_mode_seconds = sleep_time
+        twitch_api.send_message(f"Slow mode set to {sleep_time} seconds!")
 
     # op <message> - sends a message as the operator
     elif input.startswith("op ") and not external:
@@ -167,6 +173,7 @@ def process_messages():
         
         elif should_respond(username, message):
             send_response(username, message)
+            time.sleep(slow_mode_seconds)
         
         else:
             message_count += 1

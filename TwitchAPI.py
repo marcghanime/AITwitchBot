@@ -3,7 +3,7 @@ from emoji import demojize
 from typing import Callable
 from twitchAPI.pubsub import PubSub
 from twitchAPI.twitch import Twitch
-from twitchAPI.oauth import UserAuthenticator
+from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.types import AuthScope
 from twitchAPI.helper import first
 from uuid import UUID
@@ -136,12 +136,20 @@ class TwitchAPI:
 
     async def init_twitch(self, force_refresh: bool = False):
         self.twitch = Twitch(self.twitch_config.client_id, self.twitch_config.client_secret)
-        
-        if self.twitch_config.user_token == "" or self.twitch_config.refresh_token == "" or force_refresh:  
-            auth = UserAuthenticator(self.twitch, [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT], force_verify=False)
-            self.twitch_config.user_token, self.twitch_config.refresh_token = await auth.authenticate()
+        user_token: str = self.twitch_config.user_token
+        refresh_token: str = self.twitch_config.refresh_token
+        scope = [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 
-        await self.twitch.set_user_authentication(self.twitch_config.user_token, [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT], self.twitch_config.refresh_token)
+        if self.twitch_config.user_token == "" or self.twitch_config.refresh_token == "" or force_refresh:  
+            auth = UserAuthenticator(self.twitch, scope, force_verify=False)
+            user_token, refresh_token = await auth.authenticate()
+
+        else:
+            user_token, refresh_token = await refresh_access_token(refresh_token, self.twitch_config.client_id, self.twitch_config.client_secret)
+
+        await self.twitch.set_user_authentication(user_token, scope, refresh_token)
+        self.twitch_config.user_token = user_token
+        self.twitch_config.refresh_token = refresh_token
 
 
     def stop_listening_to_whispers(self):

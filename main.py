@@ -3,7 +3,7 @@ from ChatAPI import ChatAPI, Memory
 from TwitchAPI import TwitchAPI, Config
 import pygetwindow, pyautogui, pytesseract, time
 from PIL import Image
-from typing import Dict
+from typing import Dict, List
 from uuid import UUID
 import dataclasses
 
@@ -27,7 +27,6 @@ command_help = "Must be Libs or a Mod, usage: whisper me [command] or !LibsGPT [
 #TODO add emote support
 #TODO spotify integration
 #TODO longer live captions
-#TODO add commands to ai prompt
 #TODO add slow mode command
 
 
@@ -40,7 +39,7 @@ IGNORED_MESSAGE_THRESHOLD = 50
 LENGTH_MESSAGE_THRESHOLD = 50
 
 # Audio context thread variables
-audio_context: str = ""
+audio_context: List[str] = []
 SLEEP_TIME = 2.5
 
 
@@ -130,7 +129,7 @@ def handle_commands(input: str, external: bool = True):
 
 
 def send_intro():
-    intro_message = f"Hiya, I'm back!"
+    intro_message = f"Hiya, I'm back <3 !LibsGPT for mod commands."
     twitch_api.send_message(intro_message)
 
 
@@ -162,28 +161,27 @@ def get_audio_context():
             left, top = window.topleft
             pyautogui.screenshot(path, region=(left + 20, top + 40, window.width - 40, window.height - 80))
             text: str = pytesseract.image_to_string(Image.open(path))
-            audio_context = text.replace("\n", " ")
+            audio_context = text.splitlines()
             time.sleep(SLEEP_TIME)
 
 
 def process_messages():
     global message_count
     while not stop_event.is_set():
-        # get the next message from the queue (this will block until a message is available)
-        entry = message_queue.get()
+        # get the next message from the queue (this will block until a message is available or 2.5 seconds have passed)
+        try: entry = message_queue.get(timeout=2.5)
+        except queue.Empty: continue
+        
         username = entry.get('username')
         message = entry.get('message')
-
-        # this is for when the queue is empty and shutdown is called
-        if username == "admin" and message == "shutdown" and stop_event.is_set(): break
             
-        elif message.lower().startswith("!libsgpt"):
+        if message.lower().startswith("!libsgpt"):
             if username in mod_list:
                 if message.lower() == "!libsgpt":
                     twitch_api.send_message(command_help)
                 else:
                     handle_commands(message)
-
+        
         elif should_respond(username, message):
             send_response(username, message)
         
@@ -223,7 +221,7 @@ def should_respond(username: str, message: str):
 
 def send_response(username: str, message: str):
     global message_count, audio_context
-    ai_response = chat_api.get_response_AI(username, f"{username}: {message}", audio_context)
+    ai_response = chat_api.get_response_AI(username, message, audio_context)
 
     if ai_response:
         bot_response = f"@{username} {ai_response}"
@@ -289,9 +287,7 @@ def shutdown_handler(signal, frame):
 
     print('Shutting down...')
 
-    if processing_thread: 
-        message_queue.put({"username": "admin", "message": "shutdown"})
-        processing_thread.join()
+    if processing_thread: processing_thread.join()
     print('Processing thread stopped')
 
     if audio_context_thread: audio_context_thread.join()

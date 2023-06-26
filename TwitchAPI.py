@@ -29,20 +29,18 @@ class TwitchAPI:
     uuid: UUID = None
     chat_history = []
     TESTING: bool = False
+    sock = socket.socket()
 
     def __init__(self, config: Config, callback_whisper: Callable[[str, str], None],  testing: bool):
         self.twitch_config = config
         self.TESTING = testing
+        self.sock.settimeout(2.5)
         print("Initializing Twitch API...")
         asyncio.run(self.init_twitch())
         if config.twitch_api_token == "": self.get_twitch_oath_token()
         self.initialize_socket()
         asyncio.run(self.subscribe_to_whispers(callback_whisper))
         print("Twitch API Initialized")
-
-
-    sock = socket.socket()
-    regex = r'^:(?P<user>[a-zA-Z0-9_]{4,25})!\1@\1\.tmi\.twitch\.tv PRIVMSG #(?P<channel>[a-zA-Z0-9_]{4,25}) :(?P<message>.+)$'
 
 
     def initialize_socket(self):
@@ -58,13 +56,14 @@ class TwitchAPI:
 
     def listen_to_messages(self, message_queue: queue.Queue, stop_event: threading.Event):
         while not stop_event.is_set():
-            resp = self.sock.recv(2048).decode('utf-8')
+            try: resp = self.sock.recv(2048).decode('utf-8')
+            except socket.timeout: continue
             
             if ":tmi.twitch.tv NOTICE * :Login authentication failed" in resp:
                 print("Login authentication failed, refreshing user token...")
                 asyncio.run(self.init_twitch(force_refresh=True))
 
-            if resp.startswith('PING'):
+            elif resp.startswith('PING'):
                 self.sock.send("PONG\n".encode('utf-8'))
 
             elif resp.startswith(':tmi.twitch.tv') or resp.startswith(':libsgpt'):
@@ -76,13 +75,14 @@ class TwitchAPI:
                     if len(message) > 0:
                         parsed_message = self.parse_message(message)
                         self.chat_history.append(f"{parsed_message['username']}: {parsed_message['message']}")
-                        if len(self.chat_history) > 10: self.chat_history.pop(0)
+                        if len(self.chat_history) > 20: self.chat_history.pop(0)
                         message_queue.put(parsed_message)
 
 
     def parse_message(self, string: str):
+        regex = r'^:(?P<user>[a-zA-Z0-9_]{4,25})!\1@\1\.tmi\.twitch\.tv PRIVMSG #(?P<channel>[a-zA-Z0-9_]{4,25}) :(?P<message>.+)$'
         string = demojize(string)
-        match = re.match(self.regex, string)
+        match = re.match(regex, string)
         user = ""
         message = ""
 
@@ -114,7 +114,6 @@ class TwitchAPI:
         data = response.json()['data'][0]
         game_name = data['game_name']
         viewer_count = data['viewer_count']
-        title = data['title']
 
         # Get live time
         started_at = data['started_at']
@@ -124,7 +123,6 @@ class TwitchAPI:
         return {
             'game_name': game_name,
             'viewer_count': viewer_count,
-            'title': title,
             'time_live': time_live
         }
 
@@ -164,6 +162,7 @@ class TwitchAPI:
             await self.pubsub.unlisten(self.uuid)
             self.pubsub.stop()
         if self.twitch: await self.twitch.close()
+
 
     def get_chat_history(self):
         return self.chat_history

@@ -69,8 +69,7 @@ class ChatAPI:
                 
                 case "length":
                     self.log_error(response.json(), username, message)
-                    del self.memory.conversations[username][-1]
-                    return None
+                    return self.handle_successfull_response(result, username, message)
 
                 case "content_filter":
                     self.log_error(response.json(), username, message)
@@ -107,8 +106,18 @@ class ChatAPI:
             "response": response
         }
 
-        with open("logs.json", "a") as f:
-            json.dump(data, f)
+        try:
+            with open("logs.json", "r") as f:
+                logs = json.load(f)
+        except json.decoder.JSONDecodeError:
+            logs = []
+
+        # Append the new log to the existing JSON array
+        logs.append(data)
+
+        # Write the updated JSON back to the file
+        with open("logs.json", "w") as f:
+            json.dump(logs, f, indent=4)
 
 
     def handle_successfull_response(self, result, username: str, message: str):
@@ -226,20 +235,14 @@ class ChatAPI:
     
     
     # Returns the number of tokens used by a list of messages.
-    def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0301"):
-        try:
-            encoding = tiktoken.encoding_for_model(model)
-        except KeyError:
-            encoding = tiktoken.get_encoding("cl100k_base")
-        if model == "gpt-3.5-turbo-0301":  # note: future models may deviate from this
-            num_tokens = 0
-            for message in messages:
-                num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
-                for key, value in message.items():
-                    num_tokens += len(encoding.encode(value))
-                    if key == "name":  # if there's a name, the role is omitted
-                        num_tokens += -1  # role is always required and always 1 token
-            num_tokens += 2  # every reply is primed with <im_start>assistant
-            return num_tokens
-        else:
-            raise NotImplementedError(f"""num_tokens_from_messages() is not presently implemented for model {model}.""")
+    def num_tokens_from_messages(self, messages):
+        encoding = tiktoken.get_encoding("cl100k_base")
+        num_tokens = 0
+        for message in messages:
+            num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+            for key, value in message.items():
+                num_tokens += len(encoding.encode(value))
+                if key == "name":  # if there's a name, the role is omitted
+                    num_tokens += -1  # role is always required and always 1 token
+        num_tokens += 2  # every reply is primed with <im_start>assistant
+        return num_tokens

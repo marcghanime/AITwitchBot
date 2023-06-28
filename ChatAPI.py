@@ -59,21 +59,27 @@ class ChatAPI:
             self.memory.total_tokens += tokens_used
 
             # Get finish reason
-            finish_reason: str = result['choices'][0]['finish_reason'] 
+            try:
+                finish_reason: str = result['choices'][0]['finish_reason']
+            except: finish_reason = "error" 
 
             match finish_reason:
                 case "stop":
                     return self.handle_successfull_response(result, username, message)
                 
                 case "length":
-                    self.log_error(response, username, message)
+                    self.log_error(response.json(), username, message)
                     del self.memory.conversations[username][-1]
                     return None
 
                 case "content_filter":
-                    self.log_error(response, username, message)
+                    self.log_error(response.json(), username, message)
                     del self.memory.conversations[username][-1]
                     return "Omitted response due to a flag from content filters"
+                
+                case "error":
+                    self.log_error(response.json(), username, message)
+                    return None
 
         # Retry 5 times if status code is 400
         elif response.status_code == 400:
@@ -82,14 +88,14 @@ class ChatAPI:
             self.reset_ip()
 
             if self.status400Count > 5:
-                self.log_error(response, username, message)
+                self.log_error(response.json(), username, message)
                 return None
             else:
                 self.get_response_AI(username, message, retrying=True)
         
         # Other Errors handling
         else:
-            self.log_error(response, username, message)
+            self.log_error(response.json(), username, message)
             return None
         
 
@@ -132,7 +138,7 @@ class ChatAPI:
             stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
 
         twitch_chat_history = self.twitch_api.get_chat_history().copy()
-        captions = self.audio_api.get_audio_context.copy()
+        captions = self.audio_api.get_audio_context().copy()
 
         new_prompt = self.generate_prompt(stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt

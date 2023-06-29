@@ -4,6 +4,8 @@ from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
 from dataclasses import dataclass, field
 
+URL = 'https://api.pawan.krd/v1/chat/completions'
+BACKUP_URL = 'https://api.pawan.krd/unfiltered/v1/chat/completions'
 AI_API_KEY = "XlKzyLCsDTFnvqBgOKluKYAQfNVGggLYDdaYIgdgEadIYiUu"
 LINK_REGEX = r"\b[\w.-]+\.[\w.-]+\b"
 MAX_TOKENS = 4096
@@ -17,10 +19,13 @@ class Memory:
 
 
 class ChatAPI:
-    twitch_api: TwitchAPI = None
-    audio_api: AudioAPI = None
-    memory: Memory = None
+    api_url: str = URL
+    twitch_api: TwitchAPI
+    audio_api: AudioAPI
+    memory: Memory
     status400Count = 0
+    api_error_count = 0
+
     TESTING: bool = False
 
     def __init__(self, memory: Memory, twitch_api: TwitchAPI, audio_api: AudioAPI, testing: bool):
@@ -29,9 +34,8 @@ class ChatAPI:
         self.memory = memory
         self.TESTING = testing
 
-    def get_response_AI(self, username: str, message: str, retrying: bool = False):
-        url = 'https://api.pawan.krd/v1/chat/completions'
 
+    def get_response_AI(self, username: str, message: str, retrying: bool = False):
         headers = {
             'Authorization': f'Bearer pk-{AI_API_KEY}',
             'Content-Type': 'application/json'
@@ -45,10 +49,22 @@ class ChatAPI:
             "messages": self.memory.conversations[username]
         }
 
-        response = requests.post(url, headers=headers, data=json.dumps(data))
+        response = requests.post(self.api_url, headers=headers, data=json.dumps(data))
+
+        if "error" in response.json() and response.json()["error"]["type"] == "api_not_ready_or_request_error":
+            self.api_error_count += 1
+            self.api_url = BACKUP_URL
+            
+            if self.api_error_count > 5:
+                self.log_error(response.json(), username, message)
+                del self.memory.conversations[username][-1]
+                self.api_error_count = 0
+                return None
+            else:
+                return self.get_response_AI(username, message, retrying=True)
 
         # Check the response
-        if response.status_code == 200:
+        elif response.status_code == 200:
             result = response.json()
 
             # Get tokens used
@@ -88,9 +104,11 @@ class ChatAPI:
 
             if self.status400Count > 5:
                 self.log_error(response.json(), username, message)
+                del self.memory.conversations[username][-1]
+                self.status400Count = 0
                 return None
             else:
-                self.get_response_AI(username, message, retrying=True)
+                return self.get_response_AI(username, message, retrying=True)
         
         # Other Errors handling
         else:
@@ -123,8 +141,9 @@ class ChatAPI:
     def handle_successfull_response(self, result, username: str, message: str):
             message = result['choices'][0]['message']['content']
             cleaned_message = self.clean_message(message, username)
-            self.add_message_to_conversation("LibsGPT", cleaned_message, role="assistant")
+            self.add_message_to_conversation(username, cleaned_message, role="assistant")
             return cleaned_message
+
 
     def init_conversation(self, username: str):
         self.memory.conversations[username] = [
@@ -174,9 +193,10 @@ class ChatAPI:
         if len(self.memory.conversations[username]) > 9:
             self.memory.conversations[username].pop(1)
 
+        message = f"{username}: {message}" if role == "user" else message
+
         self.memory.conversations[username].append({
             "role": role,
-            "name": username,
             "content": message
         })
 

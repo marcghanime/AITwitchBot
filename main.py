@@ -1,8 +1,8 @@
 import signal, threading, sys, queue, os, msvcrt, json, time, dataclasses
 from ChatAPI import ChatAPI, Memory
-from TwitchAPI import TwitchAPI, Config
+from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
-from typing import Dict
+from models import Config, Memory
 
 TESTING: bool = True
 
@@ -16,11 +16,8 @@ message_count: int = 0
 
 # Moderation variables
 mod_list: list[str] = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl"]
-banned_users: list = []
-timedout_users: Dict[str, float] = {}
-cooldown_time: float = 0
-slow_mode_seconds: int = 0
 command_help: str = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
+prompt = "Act like an AI twitch chatter with the username LibsGPT. You cannot act as someone else! Keep your messages short, sweet and sometimes funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
 
 #TODO add emote support
 #TODO spotify integration
@@ -29,6 +26,8 @@ command_help: str = "Must be Libs or a Mod. Usage: whisper me [command] or !Libs
 twitch_api: TwitchAPI
 chat_api: ChatAPI
 audio_api: AudioAPI
+config: Config
+memory: Memory
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
@@ -37,12 +36,12 @@ LENGTH_MESSAGE_THRESHOLD: int = 50
 
 
 def main():
-    global twitch_api, chat_api, audio_api
+    global twitch_api, chat_api, audio_api, config, memory
     
     signal.signal(signal.SIGINT, shutdown_handler)
     
-    # Twtich API
-    config: Config = load_config()
+    # Twitch API
+    config = load_config()
     twitch_api = TwitchAPI(config, callback_whisper, testing=TESTING)
     mod_list.append(config.twitch_channel)
 
@@ -51,7 +50,7 @@ def main():
 
     # Chat API
     memory: Memory = load_memory()
-    chat_api = ChatAPI(memory, twitch_api, audio_api, TESTING)
+    chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
     
     start_threads()
     cli()
@@ -72,14 +71,14 @@ def handle_commands(input: str, external: bool = True) -> None:
     elif input.startswith("ban "):
         username: str = input.split(" ")[1]
         chat_api.clear_user_conversation(username)
-        banned_users.append(username)
+        memory.banned_users.append(username)
         twitch_api.send_message(f"{username} will be ignored.")
 
     # unban <username> - unbans the user
     elif input.startswith("unban "):
         username: str = input.split(" ")[1]
-        if username in banned_users:
-            banned_users.remove(username)
+        if username in memory.banned_users:
+            memory.banned_users.remove(username)
             twitch_api.send_message(f"{username} will no longer be ignored.")
 
     # timeout <username> <duration in seconds> - times out the bot for the given user
@@ -87,7 +86,7 @@ def handle_commands(input: str, external: bool = True) -> None:
         username: str = input.split(" ")[1]
         duration: int = int(input.split(" ")[2])
         out_time: float = time.time() + int(duration)
-        timedout_users[username] = out_time
+        memory.timed_out_users[username] = out_time
         chat_api.clear_user_conversation(username)
         twitch_api.send_message(f"{username} will be ignored for {duration} seconds.")
     
@@ -202,19 +201,20 @@ def cli():
             time.sleep(1)
 
 
-def moderation(username: str):
+def moderation(username: str) -> bool:
     if TESTING: return False
-    if username in banned_users: return False
+    if username in memory.banned_users: return False
     if time.time() < cooldown_time: return False
-    if username in timedout_users and time.time() < timedout_users[username]: return False
+    if username in memory.timed_out_users and time.time() < memory.timed_out_users[username]: return False
+    if username in memory.timed_out_users: del memory.timed_out_users[username] # remove if time is up
     return True
 
 
-def mentioned(username: str, message: str):
-    return username != twitch_api.twitch_config.bot_nickname.lower() and twitch_api.twitch_config.bot_nickname.lower() in message.lower()
+def mentioned(username: str, message: str) -> bool:
+    return username != config.bot_nickname.lower() and config.bot_nickname.lower() in message.lower()
 
 
-def engage(message: str):
+def engage(message: str) -> bool:
     return message_count > IGNORED_MESSAGE_THRESHOLD and len(message) > LENGTH_MESSAGE_THRESHOLD
 
 
@@ -258,7 +258,7 @@ def load_config() -> Config:
 
 def save_config() -> None:
     with open("config.json", "w") as outfile:
-        json.dump(dataclasses.asdict(twitch_api.twitch_config), outfile, indent=4)
+        json.dump(dataclasses.asdict(config), outfile, indent=4)
 
 
 def load_memory() -> Memory:

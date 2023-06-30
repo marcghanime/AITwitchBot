@@ -1,29 +1,16 @@
 import requests, socket, queue, re, datetime, threading, asyncio
 from emoji import demojize
-from typing import Callable
 from twitchAPI.pubsub import PubSub
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.types import AuthScope
 from twitchAPI.helper import first
 from uuid import UUID
-from dataclasses import dataclass
-
-@dataclass
-class Config:
-    client_id: str = ""
-    client_secret: str = ""
-    bot_nickname: str = ""
-    chat_server: str = ""
-    chat_port: int = 0
-    twitch_channel: str = ""
-    twitch_api_token: str = ""
-    user_token: str = ""
-    refresh_token: str = ""
+from models import Config
 
 
 class TwitchAPI:
-    twitch_config: Config
+    config: Config
     twitch: Twitch
     pubsub: PubSub
     uuid: UUID
@@ -32,22 +19,22 @@ class TwitchAPI:
     sock = socket.socket()
 
     def __init__(self, config: Config, callback_whisper,  testing: bool):
-        self.twitch_config = config
+        self.config = config
         self.TESTING = testing
         self.sock.settimeout(2.5)
         print("Initializing Twitch API...")
         asyncio.run(self.init_twitch())
-        if config.twitch_api_token == "": self.get_twitch_oath_token()
+        if config.twitch_api_oauth_token == "": self.get_twitch_oath_token()
         self.initialize_socket()
         asyncio.run(self.subscribe_to_whispers(callback_whisper))
         print("Twitch API Initialized")
 
 
     def initialize_socket(self):
-        self.sock.connect((self.twitch_config.chat_server, self.twitch_config.chat_port))
-        self.sock.send(f"PASS oauth:{self.twitch_config.user_token}\n".encode('utf-8'))
-        self.sock.send(f"NICK {self.twitch_config.bot_nickname}\n".encode('utf-8'))
-        self.sock.send(f"JOIN #{self.twitch_config.twitch_channel}\n".encode('utf-8'))
+        self.sock.connect((self.config.twitch_chat_server, self.config.twitch_chat_port))
+        self.sock.send(f"PASS oauth:{self.config.twitch_user_token}\n".encode('utf-8'))
+        self.sock.send(f"NICK {self.config.bot_nickname}\n".encode('utf-8'))
+        self.sock.send(f"JOIN #{self.config.twitch_channel}\n".encode('utf-8'))
 
 
     def close_socket(self):
@@ -98,15 +85,15 @@ class TwitchAPI:
 
     def send_message(self, message: str):
         if not self.TESTING:
-            self.sock.send(f"PRIVMSG #{self.twitch_config.twitch_channel} :{message}\n".encode('utf-8'))
+            self.sock.send(f"PRIVMSG #{self.config.twitch_channel} :{message}\n".encode('utf-8'))
 
 
     def get_stream_info(self):
         url = 'https://api.twitch.tv/helix/streams'
-        params = {'user_login': [self.twitch_config.twitch_channel]}
+        params = {'user_login': [self.config.twitch_channel]}
         headers = {
-            'Authorization': f'Bearer {self.twitch_config.twitch_api_token}',
-            'Client-Id': self.twitch_config.client_id
+            'Authorization': f'Bearer {self.config.twitch_api_oauth_token}',
+            'Client-Id': self.config.twitch_api_client_id
         }
 
         response = requests.get(url, params=params, headers=headers)
@@ -129,29 +116,29 @@ class TwitchAPI:
 
     def get_twitch_oath_token(self):
         url = 'https://id.twitch.tv/oauth2/token'
-        params = {'client_id': self.twitch_config.client_id, 'client_secret': self.twitch_config.client_secret, 'grant_type': 'client_credentials'}
+        params = {'client_id': self.config.twitch_api_client_id, 'client_secret': self.config.twitch_api_client_secret, 'grant_type': 'client_credentials'}
         response = requests.post(url, params=params)
-        self.twitch_config.twitch_api_token = response.json()["access_token"]
+        self.config.twitch_api_oauth_token = response.json()["access_token"]
 
 
     async def init_twitch(self, force_refresh: bool = False):
-        self.twitch = Twitch(self.twitch_config.client_id, self.twitch_config.client_secret)
-        user_token: str = self.twitch_config.user_token
-        refresh_token: str = self.twitch_config.refresh_token
+        self.twitch = Twitch(self.config.twitch_api_client_id, self.config.twitch_api_client_secret)
+        twitch_user_token: str = self.config.twitch_user_token
+        refresh_token: str = self.config.twitch_user_refresh_token
         scope = [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 
-        if self.twitch_config.user_token == "" or self.twitch_config.refresh_token == "" or force_refresh:  
+        if self.config.twitch_user_token == "" or self.config.twitch_user_refresh_token == "" or force_refresh:  
             auth = UserAuthenticator(self.twitch, scope, force_verify=False)
             auth_result = await auth.authenticate()
             if auth_result:
-                user_token, refresh_token = auth_result
+                twitch_user_token, refresh_token = auth_result
 
         else:
-            user_token, refresh_token = await refresh_access_token(refresh_token, self.twitch_config.client_id, self.twitch_config.client_secret)
+            twitch_user_token, refresh_token = await refresh_access_token(refresh_token, self.config.twitch_api_client_id, self.config.twitch_api_client_secret)
 
-        await self.twitch.set_user_authentication(user_token, scope, refresh_token)
-        self.twitch_config.user_token = user_token
-        self.twitch_config.refresh_token = refresh_token
+        await self.twitch.set_user_authentication(twitch_user_token, scope, refresh_token)
+        self.config.twitch_user_token = twitch_user_token
+        self.config.twitch_user_refresh_token = refresh_token
 
 
     def stop_listening_to_whispers(self):
@@ -159,7 +146,7 @@ class TwitchAPI:
 
 
     async def subscribe_to_whispers(self, callback_whisper):
-        user = await first(self.twitch.get_users(logins=[self.twitch_config.bot_nickname]))
+        user = await first(self.twitch.get_users(logins=[self.config.bot_nickname]))
         if user is not None:
             # starting up PubSub
             self.pubsub = PubSub(self.twitch)
@@ -182,7 +169,7 @@ class TwitchAPI:
 # def get_twitch_emotes():
 #     url = f"https://api.twitch.tv/helix/chat/emotes/global"
 #     headers = {
-#         'Authorization': f'Bearer {twitch_config.twitch_api_token}',
+#         'Authorization': f'Bearer {config.twitch_api_oauth_token}',
 #         'Client-Id': CLIENT_ID
 #     }
 

@@ -2,69 +2,47 @@ import requests, json, re, time, tiktoken
 from typing import List
 from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
-from dataclasses import dataclass, field
+from models import Memory, Config 
 
-URL = 'https://api.pawan.krd/v1/chat/completions'
-BACKUP_URL = 'https://api.pawan.krd/unfiltered/v1/chat/completions'
-AI_API_KEY = "XlKzyLCsDTFnvqBgOKluKYAQfNVGggLYDdaYIgdgEadIYiUu"
 LINK_REGEX = r"\b[\w.-]+\.[\w.-]+\b"
-MAX_TOKENS = 4096
-
-prompt = "Act like an AI twitch chatter with the username LibsGPT. You cannot act as someone else! Keep your messages short, sweet and funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
-
-@dataclass
-class Memory:
-    total_tokens: int = 0
-    conversations: dict = field(default_factory=dict) #Dict[str, list]
-
+API_URL = "https://api.openai.com/v1/chat/completions"
 
 class ChatAPI:
-    api_url: str = URL
+    config: Config
+    memory: Memory
     twitch_api: TwitchAPI
     audio_api: AudioAPI
-    memory: Memory
-    status400Count = 0
-    api_error_count = 0
+    prompt: str
 
     TESTING: bool = False
 
-    def __init__(self, memory: Memory, twitch_api: TwitchAPI, audio_api: AudioAPI, testing: bool):
+    def __init__(self, config: Config, memory: Memory, twitch_api: TwitchAPI, audio_api: AudioAPI, prompt: str, testing: bool):
+        self.config = config
         self.twitch_api = twitch_api
         self.audio_api = audio_api
         self.memory = memory
+        self.prompt = prompt
         self.TESTING = testing
 
 
-    def get_response_AI(self, username: str, message: str, retrying: bool = False):
+    def get_response_AI(self, username: str, message: str):
         headers = {
-            'Authorization': f'Bearer pk-{AI_API_KEY}',
+            'Authorization': f'Bearer {self.config.openai_api_key}',
             'Content-Type': 'application/json'
         }
 
-        if not retrying: self.add_message_to_conversation(username, message, role="user")
+        self.add_message_to_conversation(username, message, role="user")
 
         data = {
             "model": "gpt-3.5-turbo",
-            "max_tokens": 200,
+            "max_tokens": self.config.openai_api_max_tokens_response,
             "messages": self.memory.conversations[username]
         }
 
-        response = requests.post(self.api_url, headers=headers, data=json.dumps(data))
+        response = requests.post(API_URL, headers=headers, data=json.dumps(data))
 
-        if "error" in response.json() and response.json()["error"]["type"] == "api_not_ready_or_request_error":
-            self.api_error_count += 1
-            self.api_url = BACKUP_URL
-            
-            if self.api_error_count > 5:
-                self.log_error(response.json(), username, message)
-                del self.memory.conversations[username][-1]
-                self.api_error_count = 0
-                return None
-            else:
-                return self.get_response_AI(username, message, retrying=True)
-
-        # Check the response
-        elif response.status_code == 200:
+        # Successful response
+        if response.status_code == 200:
             result = response.json()
 
             # Get tokens used
@@ -77,44 +55,30 @@ class ChatAPI:
             # Get finish reason
             try:
                 finish_reason: str = result['choices'][0]['finish_reason']
-            except: finish_reason = "error" 
+            except: finish_reason = "error"
 
             match finish_reason:
                 case "stop":
                     return self.handle_successfull_response(result, username, message)
-                
+
                 case "length":
                     self.log_error(response.json(), username, message)
-                    return self.handle_successfull_response(result, username, message)
+                    return self.handle_successfull_response(result, username, f"{message}...")
 
                 case "content_filter":
                     self.log_error(response.json(), username, message)
                     del self.memory.conversations[username][-1]
                     return "Omitted response due to a flag from content filters"
-                
+
                 case "error":
                     self.log_error(response.json(), username, message)
                     return None
 
-        # Retry 5 times if status code is 400
-        elif response.status_code == 400:
-            self.status400Count += 1
-            time.sleep(5)
-            self.reset_ip()
-
-            if self.status400Count > 5:
-                self.log_error(response.json(), username, message)
-                del self.memory.conversations[username][-1]
-                self.status400Count = 0
-                return None
-            else:
-                return self.get_response_AI(username, message, retrying=True)
-        
-        # Other Errors handling
+        # Log Errors
         else:
             self.log_error(response.json(), username, message)
             return None
-        
+
 
     def log_error(self, response, username: str, message: str):
         data = {
@@ -124,6 +88,7 @@ class ChatAPI:
             "response": response
         }
 
+        # Load the existing JSON file
         try:
             with open("logs.json", "r") as f:
                 logs = json.load(f)
@@ -149,7 +114,7 @@ class ChatAPI:
         self.memory.conversations[username] = [
             {
                 "role": "system",
-                "content": prompt
+                "content": self.prompt
             }
         ]
 
@@ -157,7 +122,7 @@ class ChatAPI:
     def update_prompt(self, username: str):
         stream_info = None
         stream_info_string = ""
-        
+
         if not self.TESTING: stream_info = self.twitch_api.get_stream_info()
         if stream_info:
             game_name = stream_info.get("game_name")
@@ -168,22 +133,23 @@ class ChatAPI:
         twitch_chat_history = self.twitch_api.get_chat_history().copy()
         captions = self.audio_api.get_audio_context().copy()
 
-        new_prompt = self.generate_prompt(stream_info_string, twitch_chat_history, captions)
+        new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
 
-                
-        while self.num_tokens_from_messages(self.memory.conversations[username]) > 3800:
+        limit: int = self.config.openai_api_max_tokens_total - self.config.openai_api_max_tokens_response - 100 # 100 is a buffer
+
+        while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
             twitch_chat_history.pop(0)
             captions.pop(0)
 
-            new_prompt = self.generate_prompt(stream_info_string, twitch_chat_history, captions)
+            new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
             self.memory.conversations[username][0]["content"] = new_prompt
-    
 
-    def generate_prompt(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
+
+    def generate_prompt_extras(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
         twitch_chat_history_string = f"- Recents messages in Twitch chat: {' | '.join(twitch_chat_history)}"
         caption_string = f"- Live captions of what is being said: '{' '.join(captions)}'"
-        return prompt + stream_info_string + caption_string + twitch_chat_history_string
+        return self.prompt + stream_info_string + caption_string + twitch_chat_history_string
 
 
     def add_message_to_conversation(self, username: str, message: str, role: str):
@@ -203,15 +169,6 @@ class ChatAPI:
         self.update_prompt(username)
 
 
-    def reset_ip(self):
-        print("Resetting IP")
-        url = 'https://api.pawan.krd/resetip'
-        headers = {
-            'Authorization':  f'Bearer pk-{AI_API_KEY}'
-        }
-        requests.post(url, headers=headers)
-
-
     # Remove unwanted charachters from the message
     def clean_message(self, message, username):
         message = self.remove_mentions(message, username)
@@ -222,7 +179,7 @@ class ChatAPI:
 
 
     def remove_mentions(self, text: str, username: str):
-        text = text.replace("@User", "").replace("@user", "").replace("@LibsGPT", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace("LibsGPT:", "")
+        text = text.replace("@User", "").replace("@user", "").replace(f"@{self.config.bot_nickname}", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace(f"{self.config.bot_nickname}:", "")
         return text
 
 
@@ -252,8 +209,8 @@ class ChatAPI:
 
     def get_total_tokens(self):
         return self.memory.total_tokens
-    
-    
+
+
     # Returns the number of tokens used by a list of messages.
     def num_tokens_from_messages(self, messages):
         encoding = tiktoken.get_encoding("cl100k_base")

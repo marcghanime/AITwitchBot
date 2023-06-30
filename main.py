@@ -3,9 +3,8 @@ from ChatAPI import ChatAPI, Memory
 from TwitchAPI import TwitchAPI, Config
 from AudioAPI import AudioAPI
 from typing import Dict
-from uuid import UUID
 
-TESTING = True
+TESTING: bool = True
 
 # Thread variables
 listening_thread = None
@@ -13,28 +12,28 @@ processing_thread = None
 audio_context_thread = None
 stop_event = threading.Event()
 
-message_count = 0
+message_count: int = 0
 
 # Moderation variables
-mod_list = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl"]
+mod_list: list[str] = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl"]
 banned_users: list = []
 timedout_users: Dict[str, float] = {}
 cooldown_time: float = 0
-slow_mode_seconds: float = 0
-command_help = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
+slow_mode_seconds: int = 0
+command_help: str = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
 
 #TODO add emote support
 #TODO spotify integration
 
 
-twitch_api: TwitchAPI = None
-chat_api: ChatAPI = None
-audio_api: AudioAPI = None
+twitch_api: TwitchAPI
+chat_api: ChatAPI
+audio_api: AudioAPI
 
 # create a queue to hold the messages
 message_queue = queue.Queue()
-IGNORED_MESSAGE_THRESHOLD = 50
-LENGTH_MESSAGE_THRESHOLD = 50
+IGNORED_MESSAGE_THRESHOLD: int = 50
+LENGTH_MESSAGE_THRESHOLD: int = 50
 
 
 def main():
@@ -58,55 +57,55 @@ def main():
     cli()
 
 
-def handle_commands(input: str, external: bool = True):
+def handle_commands(input: str, external: bool = True) -> None:
     global banned_users, timedout_users, cooldown_time, slow_mode_seconds
     
     input = input.lower().replace("!libsgpt ", "").replace("!libsgpt", "")
     
     # reset <username> - clears the conversation memory with the given username
     if input.startswith("reset "):
-        username = input.split(" ")[1]
+        username: str = input.split(" ")[1]
         chat_api.clear_user_conversation(username)
         twitch_api.send_message(f"Conversation with {username} has been reset.")
 
     # ban <username> - bans the user, so that the bot will not respond to them
     elif input.startswith("ban "):
-        username = input.split(" ")[1]
+        username: str = input.split(" ")[1]
         chat_api.clear_user_conversation(username)
         banned_users.append(username)
         twitch_api.send_message(f"{username} will be ignored.")
 
     # unban <username> - unbans the user
     elif input.startswith("unban "):
-        username = input.split(" ")[1]
+        username: str = input.split(" ")[1]
         if username in banned_users:
             banned_users.remove(username)
             twitch_api.send_message(f"{username} will no longer be ignored.")
 
     # timeout <username> <duration in seconds> - times out the bot for the given user
     elif input.startswith("timout "):
-        username = input.split(" ")[1]
-        duration = input.split(" ")[2]
-        out_time = time.time() + int(duration)
+        username: str = input.split(" ")[1]
+        duration: int = int(input.split(" ")[2])
+        out_time: float = time.time() + int(duration)
         timedout_users[username] = out_time
         chat_api.clear_user_conversation(username)
         twitch_api.send_message(f"{username} will be ignored for {duration} seconds.")
     
     # cooldown <duration in minutes> - puts the bot in cooldown for the given duration
     elif input.startswith("cooldown "):
-        out_time = input.split(" ")[1]
-        cooldown_time = time.time() + int(out_time * 60)
+        out_time: float = float(input.split(" ")[1])
+        cooldown_time = time.time() + float(out_time * 60)
         twitch_api.send_message(f"Going in Cooldown for {out_time} minutes!")
 
     # slowmode <duration in seconds> - sets the slow mode for the bot
     elif input.startswith("slowmode "):
-        sleep_time = input.split(" ")[1]
+        sleep_time: int = int(input.split(" ")[1])
         slow_mode_seconds = sleep_time
         twitch_api.send_message(f"Slow mode set to {sleep_time} seconds!")
 
     # op <message> - sends a message as the operator
     elif input.startswith("op ") and not external:
-        message = input.split(" ", 1)[1]
+        message: str = input.split(" ", 1)[1]
         twitch_api.send_message(f"(operator): {message}")
 
     # set-imt <number> - sets the ignored message threshold    
@@ -229,7 +228,7 @@ def send_response(username: str, message: str):
         message_count = 0
 
 
-async def callback_whisper(uuid: UUID, data: dict) -> None:
+async def callback_whisper(uuid, data) -> None:
     try: 
         data = json.loads(data.get("data"))
         message = data["body"]

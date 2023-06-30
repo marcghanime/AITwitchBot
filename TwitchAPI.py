@@ -23,15 +23,15 @@ class Config:
 
 
 class TwitchAPI:
-    twitch_config: Config = None
-    twitch: Twitch = None
-    pubsub: PubSub = None
-    uuid: UUID = None
+    twitch_config: Config
+    twitch: Twitch
+    pubsub: PubSub
+    uuid: UUID
     chat_history = []
     TESTING: bool = False
     sock = socket.socket()
 
-    def __init__(self, config: Config, callback_whisper: Callable[[str, str], None],  testing: bool):
+    def __init__(self, config: Config, callback_whisper,  testing: bool):
         self.twitch_config = config
         self.TESTING = testing
         self.sock.settimeout(2.5)
@@ -142,7 +142,9 @@ class TwitchAPI:
 
         if self.twitch_config.user_token == "" or self.twitch_config.refresh_token == "" or force_refresh:  
             auth = UserAuthenticator(self.twitch, scope, force_verify=False)
-            user_token, refresh_token = await auth.authenticate()
+            auth_result = await auth.authenticate()
+            if auth_result:
+                user_token, refresh_token = auth_result
 
         else:
             user_token, refresh_token = await refresh_access_token(refresh_token, self.twitch_config.client_id, self.twitch_config.client_secret)
@@ -156,13 +158,14 @@ class TwitchAPI:
         asyncio.run(self.unsubscribe_from_whispers())
 
 
-    async def subscribe_to_whispers(self, callback_whisper: Callable[[UUID, dict], None]):
+    async def subscribe_to_whispers(self, callback_whisper):
         user = await first(self.twitch.get_users(logins=[self.twitch_config.bot_nickname]))
-        # starting up PubSub
-        self.pubsub = PubSub(self.twitch)
-        self.pubsub.start()
-        # you can either start listening before or after you started pubsub.
-        self.uuid = await self.pubsub.listen_whispers(user.id, callback_whisper)
+        if user is not None:
+            # starting up PubSub
+            self.pubsub = PubSub(self.twitch)
+            self.pubsub.start()
+            # you can either start listening before or after you started pubsub.
+            self.uuid = await self.pubsub.listen_whispers(user.id, callback_whisper)
 
 
     async def unsubscribe_from_whispers(self):

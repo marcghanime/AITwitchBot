@@ -10,14 +10,14 @@ I only tested this on windows so I don't know if it works on other operating sys
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
 2. For the First time run `python main.py` and it will create a config file.
-3. Fill out the config file. See [Config File](#config-file) for detailed info.
+3. Fill out the config file. See [Config File](#Config-File) for detailed info.
 
 ## Running
 1. Run `python main.py`
 2. To get audio captions in the script [enable captions in Chrome browser](https://support.google.com/chrome/answer/10538231) and the script should auto detect the window called Live Caption and use text recognition from that window to get the captions.
 - To input a command just start typing in the console and press enter.
 
-## Config File {#config-file}
+## Config File
 - **twitch_channel** - The channel the bot will join
 - **bot_nickname** - The bots username
 - **twitch_api_client_id** - The client id for the twitch api [Get it here](https://dev.twitch.tv/console/apps)

@@ -133,7 +133,7 @@ def handle_commands(input: str, external: bool = True):
 
 
 def send_intro():
-    intro_message = f"Hiya, I'm back <3 !LibsGPT for mod commands."
+    intro_message = f"Hiya, I'm back <3 !LibsGPT for mod commands or checkout my channel pannels."
     twitch_api.send_message(intro_message)
 
 
@@ -171,10 +171,14 @@ def process_messages():
                 else:
                     handle_commands(message)
         
-        elif should_respond(username, message):
+        elif mentioned(username, message) and moderation(username):
             send_response(username, message)
             time.sleep(slow_mode_seconds)
-        
+
+        elif engage(message) and moderation(username):
+            send_response(username, f"@Skylibs {message}")
+            time.sleep(slow_mode_seconds)
+
         else:
             message_count += 1
 
@@ -199,16 +203,20 @@ def cli():
             time.sleep(1)
 
 
-def should_respond(username: str, message: str):
-    # Moderation
+def moderation(username: str):
     if TESTING: return False
     if username in banned_users: return False
     if time.time() < cooldown_time: return False
     if username in timedout_users and time.time() < timedout_users[username]: return False
-    
-    mentioned = username != twitch_api.twitch_config.bot_nickname.lower() and twitch_api.twitch_config.bot_nickname.lower() in message.lower()
-    ignored = message_count > IGNORED_MESSAGE_THRESHOLD and len(message) > LENGTH_MESSAGE_THRESHOLD
-    return mentioned or ignored
+    return True
+
+
+def mentioned(username: str, message: str):
+    return username != twitch_api.twitch_config.bot_nickname.lower() and twitch_api.twitch_config.bot_nickname.lower() in message.lower()
+
+
+def engage(message: str):
+    return message_count > IGNORED_MESSAGE_THRESHOLD and len(message) > LENGTH_MESSAGE_THRESHOLD
 
 
 def send_response(username: str, message: str):

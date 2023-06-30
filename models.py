@@ -23,9 +23,3 @@ class Memory:
     banned_users: list = field(default_factory=list)
     timed_out_users: dict = field(default_factory=dict) #Dict[str, float]
     conversations: dict = field(default_factory=dict) #Dict[str, list]
-
-
-@dataclass
-class Message:
-    username: str = ""
-    message: str = ""

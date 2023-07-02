@@ -84,6 +84,7 @@ class TwitchAPI:
 
 
     def send_message(self, message: str):
+        if len(message) > 500: message = message[:475] + "..."
         if not self.TESTING:
             self.sock.send(f"PRIVMSG #{self.config.twitch_channel} :{message}\n".encode('utf-8'))
 

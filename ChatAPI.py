@@ -139,6 +139,8 @@ class ChatAPI:
         limit: int = self.config.openai_api_max_tokens_total - self.config.openai_api_max_tokens_response - 100 # 100 is a buffer
 
         while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
+            if len(twitch_chat_history) == 0 or len(captions) == 0:
+                break
             twitch_chat_history.pop(0)
             captions.pop(0)
 
@@ -148,7 +150,7 @@ class ChatAPI:
 
     def generate_prompt_extras(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
         twitch_chat_history_string = f"- Recents messages in Twitch chat: {' | '.join(twitch_chat_history)}"
-        caption_string = f"- Live captions of what is being said: '{' '.join(captions)}'"
+        caption_string = f"- Live captions of what {self.config.twitch_channel} is currently saying: '{' '.join(captions)}'"
         return self.prompt + stream_info_string + caption_string + twitch_chat_history_string
 
 

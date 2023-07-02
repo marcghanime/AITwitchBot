@@ -49,7 +49,7 @@ def main():
     audio_api = AudioAPI()
 
     # Chat API
-    memory: Memory = load_memory()
+    memory = load_memory()
     chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
     
     start_threads()
@@ -57,7 +57,7 @@ def main():
 
 
 def handle_commands(input: str, external: bool = True) -> None:
-    global banned_users, timedout_users, cooldown_time, slow_mode_seconds
+    global memory
     
     input = input.lower().replace("!libsgpt ", "").replace("!libsgpt", "")
     
@@ -93,13 +93,13 @@ def handle_commands(input: str, external: bool = True) -> None:
     # cooldown <duration in minutes> - puts the bot in cooldown for the given duration
     elif input.startswith("cooldown "):
         out_time: float = float(input.split(" ")[1])
-        cooldown_time = time.time() + float(out_time * 60)
+        memory.cooldown_time = time.time() + float(out_time * 60)
         twitch_api.send_message(f"Going in Cooldown for {out_time} minutes!")
 
     # slowmode <duration in seconds> - sets the slow mode for the bot
     elif input.startswith("slowmode "):
         sleep_time: int = int(input.split(" ")[1])
-        slow_mode_seconds = sleep_time
+        memory.slow_mode_seconds = sleep_time
         twitch_api.send_message(f"Slow mode set to {sleep_time} seconds!")
 
     # op <message> - sends a message as the operator
@@ -171,11 +171,11 @@ def process_messages():
         
         elif mentioned(username, message) and moderation(username):
             send_response(username, message)
-            time.sleep(slow_mode_seconds)
+            if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
 
         elif engage(message) and moderation(username):
             send_response(username, f"@Skylibs {message}")
-            time.sleep(slow_mode_seconds)
+            if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
 
         else:
             message_count += 1
@@ -204,7 +204,7 @@ def cli():
 def moderation(username: str) -> bool:
     if TESTING: return False
     if username in memory.banned_users: return False
-    if time.time() < cooldown_time: return False
+    if time.time() < memory.cooldown_time: return False
     if username in memory.timed_out_users and time.time() < memory.timed_out_users[username]: return False
     if username in memory.timed_out_users: del memory.timed_out_users[username] # remove if time is up
     return True

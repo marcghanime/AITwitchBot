@@ -131,7 +131,7 @@ class ChatAPI:
             stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
 
         twitch_chat_history = self.twitch_api.get_chat_history().copy()
-        captions = self.audio_api.get_audio_context().copy()
+        captions = self.audio_api.transcription.copy()
 
         new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt

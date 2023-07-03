@@ -186,7 +186,7 @@ def cli():
     old_token_count = chat_api.get_total_tokens()
 
     os.system('cls')
-    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}")
+    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {audio_api.transcription[-1]}")
 
     while True: 
     # Check if there is input available on stdin
@@ -195,7 +195,7 @@ def cli():
             handle_commands(user_input, external=False)
         elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens():
             os.system('cls')
-            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()}")
+            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Last Captions: {audio_api.transcription[-1]}")
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
             time.sleep(1)

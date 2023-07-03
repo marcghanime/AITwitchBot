@@ -7,7 +7,7 @@ from time import sleep
 
 
 RECORD_TIMOUT = 5
-PHRASE_TIMEOUT = 5
+PHRASE_TIMEOUT = 2.5
 SAMPLE_RATE = 48000
 VIRTUAL_AUDIO_CABLE_NAME = 'CABLE Output (VB-Audio Virtual'
 
@@ -118,6 +118,10 @@ class AudioAPI:
         ends_with_dot: bool = first_string.endswith(".")
         ends_with_three_dots: bool = first_string.endswith("...")
 
+        # remove the last word
+        last_word = first_string.split()[-1]
+        first_string = " ".join(first_string.split()[:-1]).strip()
+
         first_string_lower = first_string.lower()
         second_string_lower = second_string.lower()
 
@@ -139,13 +143,14 @@ class AudioAPI:
         # remove the overlap
         if overlap: first_string = first_string[:-len(overlap)]
 
+        # if no overlap and the last word isn't in second_string, add it back to first_string
+        if not overlap and second_string.split()[0] != last_word: 
+            first_string = f"{first_string} {last_word}"
+        
         # remove trailing and starting whitespaces
         first_string = first_string.strip()
 
         # cleanup if ',' is remaining
         if first_string.endswith(","): first_string = first_string[:-1]
-
-        if not first_string.endswith(".") and not first_string.endswith("..."):
-            first_string = f"{first_string}..."
         
         return first_string

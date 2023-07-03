@@ -14,7 +14,7 @@ I only tested this on windows so I don't know if it works on other operating sys
 
 ## Running
 1. Run `python main.py`
-- To input a command just start typing in the console and press enter.
+- To input a [command](#Commands) just start typing in the console and press enter.
 
 ## Config File
 - **twitch_channel** - The channel the bot will join
@@ -29,3 +29,11 @@ I only tested this on windows so I don't know if it works on other operating sys
 - **openai_api_key** - The openai api key [Get it here](https://platform.openai.com/account/api-keys)
 - **openai_api_max_tokens_total** `has a default value` - The max tokens for a single request
 - **openai_api_max_tokens_response** `has a default value` - The max tokens for a single response
+
+## Commands 
++ **timeout [*username*] [*seconds*]** the bot ignores the user for the given duration
++ **reset [*username*]** clears the conversation memory with the given user
++ **cooldown [*minutes*]** puts the bot in cooldown for the given duration (ignores all messages)
++ **ban [*username*]** bans the user, so that the bot will not respond to them
++ **unban [*username*]** unbans the user
++ **slowmode [*seconds*]** sets the slow mode for the bot

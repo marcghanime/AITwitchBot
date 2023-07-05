@@ -17,8 +17,10 @@ message_count: int = 0
 # Moderation variables
 mod_list: list[str] = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl"]
 command_help: str = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
-prompt = "Act like an AI twitch chatter with the username LibsGPT. You cannot act as someone else! Keep your messages short, sweet and sometimes funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
+prompt = "Act like an AI twitch chatter with the username LibsGPT. Try to keep your messages under 150 characters. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
 
+#TODO auto get mod list
+#TODO add banned words list
 #TODO add emote support
 #TODO spotify integration
 
@@ -185,19 +187,24 @@ def cli():
     old_message_count = message_count
     old_token_count = chat_api.get_total_tokens()
 
+    last_captions = audio_api.get_transcription()[-1]
     os.system('cls')
-    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {audio_api.transcription[-1]}")
+    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {last_captions}")
 
     while True: 
     # Check if there is input available on stdin
         if msvcrt.kbhit():
             user_input = input("Enter something: ")
             handle_commands(user_input, external=False)
+        
         elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens():
+            last_captions = audio_api.get_transcription()[-1]
             os.system('cls')
-            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Last Captions: {audio_api.transcription[-1]}")
+            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Last Captions: {last_captions}")
+            
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
+            
             time.sleep(1)
 
 

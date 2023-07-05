@@ -38,8 +38,8 @@ class ChatAPI:
             "max_tokens": self.config.openai_api_max_tokens_response,
             "messages": self.memory.conversations[username]
         }
-
-        response = requests.post(API_URL, headers=headers, data=json.dumps(data))
+        request = json.dumps(data)
+        response = requests.post(API_URL, headers=headers, data=request)
 
         # Successful response
         if response.status_code == 200:
@@ -62,30 +62,31 @@ class ChatAPI:
                     return self.handle_successfull_response(result, username, message)
 
                 case "length":
-                    self.log_error(response.json(), username, message)
+                    self.log_error(response.json(), username, message, request)
                     return self.handle_successfull_response(result, username, f"{message}...")
 
                 case "content_filter":
-                    self.log_error(response.json(), username, message)
+                    self.log_error(response.json(), username, message, request)
                     del self.memory.conversations[username][-1]
                     return "Omitted response due to a flag from content filters"
 
                 case "error":
-                    self.log_error(response.json(), username, message)
+                    self.log_error(response.json(), username, message, request)
                     return None
 
         # Log Errors
         else:
-            self.log_error(response.json(), username, message)
+            self.log_error(response.json(), username, message, request)
             return None
 
 
-    def log_error(self, response, username: str, message: str):
+    def log_error(self, response, username: str, message: str, request: str):
         data = {
             "date": time.ctime(),
             "username": username,
             "message": message,
-            "response": response
+            "response": response,
+            "request": request
         }
 
         # Load the existing JSON file

@@ -164,7 +164,7 @@ class TwitchAPI:
 
 
     def get_chat_history(self):
-        return self.chat_history
+        return self.chat_history.copy()
 
 
 # def get_twitch_emotes():

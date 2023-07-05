@@ -45,7 +45,7 @@ class AudioAPI:
         print("Initializing Audio API...")
 
         # Load the model.    
-        self.audio_model = whisper.load_model("small.en")
+        self.audio_model = whisper.load_model("base.en")
         
         # Find the index of the virtual audio cable.
         dev_index = 0
@@ -96,6 +96,8 @@ class AudioAPI:
                 # Read the transcription.
                 result = self.audio_model.transcribe(self.temp_file, fp16=torch.cuda.is_available())
                 text = str(result['text']).strip()
+
+                text = text.replace("fuck", "f***").replace("Fuck", "F***")
 
                 # If we detected a pause between recordings, add a new item to our transcripion.
                 # Otherwise edit the existing one.
@@ -154,3 +156,6 @@ class AudioAPI:
         if first_string.endswith(","): first_string = first_string[:-1]
         
         return first_string
+    
+    def get_transcription(self):
+        return self.transcription.copy()

@@ -6,7 +6,7 @@ import pyaudio
 
 def main():
     print("checking/downloading whisper model...")
-    whisper.load_model("small.en")
+    whisper.load_model("base.en")
 
     try:
         with open("config.json", "r") as infile:

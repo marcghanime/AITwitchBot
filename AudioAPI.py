@@ -6,8 +6,8 @@ from tempfile import NamedTemporaryFile
 from time import sleep                
 
 
-RECORD_TIMOUT = 5
-PHRASE_TIMEOUT = 2.5
+RECORD_TIMOUT = 4
+PHRASE_TIMEOUT = 2
 SAMPLE_RATE = 48000
 VIRTUAL_AUDIO_CABLE_NAME = 'CABLE Output (VB-Audio Virtual'
 

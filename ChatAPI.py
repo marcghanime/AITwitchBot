@@ -1,7 +1,7 @@
 import requests, json, re, time, tiktoken
 from typing import List
 from TwitchAPI import TwitchAPI
-from AudioAPI import AudioAPI
+from AudioAPI_V1 import AudioAPI
 from models import Memory, Config 
 
 LINK_REGEX = r"\b[\w.-]+\.[\w.-]+\b"
@@ -63,12 +63,12 @@ class ChatAPI:
 
                 case "length":
                     self.log_error(response.json(), username, message, request)
-                    return self.handle_successfull_response(result, username, f"{message}...")
+                    return self.handle_successfull_response(result, username, message)
 
                 case "content_filter":
                     self.log_error(response.json(), username, message, request)
                     del self.memory.conversations[username][-1]
-                    return "Omitted response due to a flag from content filters"
+                    return None
 
                 case "error":
                     self.log_error(response.json(), username, message, request)
@@ -140,10 +140,10 @@ class ChatAPI:
         limit: int = self.config.openai_api_max_tokens_total - self.config.openai_api_max_tokens_response - 100 # 100 is a buffer
 
         while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
-            if len(twitch_chat_history) == 0 or len(captions) == 0:
-                break
-            twitch_chat_history.pop(0)
-            captions.pop(0)
+            if len(twitch_chat_history) == 0 and len(captions) == 0: break
+            
+            if len(twitch_chat_history) != 0:  twitch_chat_history.pop(0)
+            if len(captions) != 0: captions.pop(0)
 
             new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
             self.memory.conversations[username][0]["content"] = new_prompt
@@ -178,8 +178,13 @@ class ChatAPI:
         message = self.remove_hashtags(message)
         message = self.remove_links(message)
         message = message.replace("\n", " ")
+        message = self.remove_quotations(message)
         return message
 
+    def remove_quotations(self, text: str):
+        if text.startswith('"') and text.endswith('"'):
+            return str(text[1:-1])
+        return text
 
     def remove_mentions(self, text: str, username: str):
         text = text.replace("@User", "").replace("@user", "").replace(f"@{self.config.bot_nickname}", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace(f"{self.config.bot_nickname}:", "")

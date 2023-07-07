@@ -11,7 +11,7 @@ There is two ways to caption the stream audio:
 - To enable chrome captions see [here](https://support.google.com/chrome/answer/10538231)
 - The captions must be visible on the screen so that the screenshot can capture them.
 
-**(2) `AudioAPI.py` Using the virutal Audio Cable to capture the audio and pass it to the whipser model to caption it.**
+**(2) `AudioAPI.py` Using Virutal Audio Cable to capture the audio and pass it to the whipser model to caption it.**
 - This method uses much more resources but you don't need to have the chrome captions open while running the bot.
 - To use this method you need to set the virtual audio cable as the output device in windows sound settings. And if you want to hear the audio you can pass the audio from the virtual audio cable to your normal output device [See here](https://golightstream.com/how-to-setup-virtual-audio-cables/)
 

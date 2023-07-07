@@ -111,12 +111,12 @@ def handle_commands(input: str, external: bool = True) -> None:
         twitch_api.send_message(f"(operator): {message}")
 
     # set-imt <number> - sets the ignored message threshold    
-    elif input.startswith("set-imt ") and not external:
+    elif input.startswith("set-emt ") and not external:
         global IGNORED_MESSAGE_THRESHOLD
         IGNORED_MESSAGE_THRESHOLD = int(input.split(" ")[1])
 
     # set-lmt <number> - sets the length message threshold
-    elif input.startswith("set-lmt ") and not external:
+    elif input.startswith("set-elmt ") and not external:
         global LENGTH_MESSAGE_THRESHOLD
         LENGTH_MESSAGE_THRESHOLD = int(input.split(" ")[1])
 

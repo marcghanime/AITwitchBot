@@ -54,9 +54,18 @@ To switch to between them just change the import in `main.py` and `ChatAPI.py` f
 - **openai_api_max_tokens_response** `has a default value` - The max tokens for a single response
 
 ## Commands 
+The following commands are available to the mods via !LibsGPT or whispers to the bot. They are also available from the script console:
 + **timeout [*username*] [*seconds*]** the bot ignores the user for the given duration
 + **reset [*username*]** clears the conversation memory with the given user
 + **cooldown [*minutes*]** puts the bot in cooldown for the given duration (ignores all messages)
 + **ban [*username*]** bans the user, so that the bot will not respond to them
 + **unban [*username*]** unbans the user
 + **slowmode [*seconds*]** sets the slow mode for the bot
+
+The following commands are only available from the script console:
++ **op [*message*]** sends a message in chat as (operator)
++ **set-emt [*count*]** (**E**ngage **M**essage **T**hreshold) sets the amount of chats the bot will receive before it will engage without being mentioned
++ **set-elmt [*count*]** sets the minimum length of the message the bot will engage with when EMT is reached
++ **test-msg [*message*]** sends a message to the OpenAI model to test the response
++ **intro** sends the intro message to chat
++ **exit** exits the script

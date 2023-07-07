@@ -1,7 +1,7 @@
-import signal, threading, sys, queue, os, msvcrt, json, time, dataclasses
+import signal, threading, sys, queue, os, msvcrt, json, time, dataclasses, random
 from ChatAPI import ChatAPI, Memory
 from TwitchAPI import TwitchAPI
-from AudioAPI import AudioAPI
+from AudioAPI_V1 import AudioAPI
 from models import Config, Memory
 
 TESTING: bool = True
@@ -17,7 +17,7 @@ message_count: int = 0
 # Moderation variables
 mod_list: list[str] = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl"]
 command_help: str = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
-prompt = "Act like an AI twitch chatter with the username LibsGPT. Try to keep your messages under 25 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
+prompt = "Act like an AI twitch chatter with the username LibsGPT. Try to keep your messages under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
 
 #TODO auto get mod list
 #TODO add banned words list
@@ -52,6 +52,7 @@ def main():
 
     # Chat API
     memory = load_memory()
+    memory.reaction_time = time.time() + 300 #set the first reaction time to 10 minutes from now
     chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
     
     start_threads()
@@ -175,8 +176,12 @@ def process_messages():
             send_response(username, message)
             if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
 
+        elif react() and moderation(""):
+            send_response(config.twitch_channel, f"repond or react to the last things {config.twitch_channel} said based on the captions")
+            memory.reaction_time = time.time() + random.randint(300, 900) # 5-15 minutes
+
         elif engage(message) and moderation(username):
-            send_response(username, f"@Skylibs {message}")
+            send_response(username, f"@{config.twitch_channel} {message}")
             if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
 
         else:
@@ -224,12 +229,24 @@ def mentioned(username: str, message: str) -> bool:
 def engage(message: str) -> bool:
     return message_count > IGNORED_MESSAGE_THRESHOLD and len(message) > LENGTH_MESSAGE_THRESHOLD
 
+def react() -> bool:
+    return time.time() > memory.reaction_time
+
 
 def send_response(username: str, message: str):
     global message_count
     ai_response = chat_api.get_response_AI(username, message)
 
-    if ai_response:
+    if ai_response and username == config.twitch_channel and message == f"repond or react to the last things {config.twitch_channel} said based on the captions":
+        bot_response = f"{ai_response}"
+        twitch_api.send_message(bot_response)
+        message_count = 0
+        
+        # remove the last 2 messages from the memory to prevent the bot from influencing itself
+        memory.conversations[config.twitch_channel].pop(-1)
+        memory.conversations[config.twitch_channel].pop(-1)
+    
+    elif ai_response:
         bot_response = f"@{username} {ai_response}"
         twitch_api.send_message(bot_response)
         message_count = 0

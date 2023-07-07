@@ -15,7 +15,7 @@ There is two ways to caption the stream audio:
 - This method uses much more resources but you don't need to have the chrome captions open while running the bot.
 - To use this method you need to set the virtual audio cable as the output device in windows sound settings. And if you want to hear the audio you can pass the audio from the virtual audio cable to your normal output device [See here](https://golightstream.com/how-to-setup-virtual-audio-cables/)
 
-### To switch to between them just change the import in `main.py` and `ChatAPI.py` from/to `from AudioAPI import AudioAPI` / `from AudioAPI_V1 import AudioAPI`
+To switch to between them just change the import in `main.py` and `ChatAPI.py` from/to `from AudioAPI import AudioAPI` / `from AudioAPI_V1 import AudioAPI`
 
 ## Requirements
 - Python 3.6+ [Download](https://www.python.org/downloads/)

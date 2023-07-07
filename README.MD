@@ -33,7 +33,6 @@ To switch to between them just change the import in `main.py` and `ChatAPI.py` f
 - To input a [command](#Commands) just start typing in the console and press enter.
 
 ## TODO
-- [ ] Automatically fetch mod list on startup
 - [ ] Add banned words functionality
 - [ ] Add 7tv emote support (use the 7tv API ?)
 - [ ] Figure out a way to fetch the current playing song from spotify
@@ -54,7 +53,7 @@ To switch to between them just change the import in `main.py` and `ChatAPI.py` f
 - **openai_api_max_tokens_response** `has a default value` - The max tokens for a single response
 
 ## Commands 
-The following commands are available to the mods via !{bot_nickname} or whispers to the bot. They are also available from the script console:
+The following commands are available to the mods via !{bot_nickname}. They are also available from the script console:
 + **timeout [*username*] [*seconds*]** - the bot ignores the user for the given duration
 + **reset [*username*]** - clears the conversation memory with the given user
 + **cooldown [*minutes*]** - puts the bot in cooldown for the given duration (ignores all messages)

@@ -14,12 +14,10 @@ stop_event = threading.Event()
 
 message_count: int = 0
 
-# Moderation variables
-mod_list: list[str] = ["000kennedy000", "eridinn", "fingerlickinflashback", "itztwistedxd", "lilypips", "losoz", "mysticarchive", "realyezper", "revenjl"]
-command_help: str = "Must be Libs or a Mod. Usage: whisper me [command] or !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
+# TODO make these dynamic
+command_help: str = "Must be Libs or a Mod. Usage: !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
 prompt = "Act like an AI twitch chatter with the username LibsGPT. Try to keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
 
-#TODO auto get mod list
 #TODO add banned words list
 #TODO add emote support
 #TODO spotify integration
@@ -44,8 +42,7 @@ def main():
     
     # Twitch API
     config = load_config()
-    twitch_api = TwitchAPI(config, callback_whisper, testing=TESTING)
-    mod_list.append(config.twitch_channel)
+    twitch_api = TwitchAPI(config, testing=TESTING)
 
     # Audio API
     audio_api = AudioAPI()
@@ -166,7 +163,7 @@ def process_messages():
         message = entry.get('message')
             
         if message.lower().startswith("!libsgpt"):
-            if username in mod_list:
+            if username in twitch_api.moderators:
                 if message.lower() == "!libsgpt":
                     twitch_api.send_message(command_help)
                 else:
@@ -252,18 +249,6 @@ def send_response(username: str, message: str):
         message_count = 0
 
 
-async def callback_whisper(uuid, data) -> None:
-    try: 
-        data = json.loads(data.get("data"))
-        message = data["body"]
-        username = data["tags"]["login"]
-
-        if username in mod_list:
-            handle_commands(message)
-
-    except: return
-
-
 def load_config() -> Config:
     try:
         with open("config.json", "r") as infile:
@@ -318,9 +303,6 @@ def shutdown_handler(signal, frame):
 
     if listening_thread: listening_thread.join()
     print('Listening thread stopped')
-
-    twitch_api.stop_listening_to_whispers()
-    print('Whisper listener stopped')
     
     twitch_api.close_socket()
 

@@ -1,37 +1,35 @@
 import requests, socket, queue, re, datetime, threading, asyncio
 from emoji import demojize
-from twitchAPI.pubsub import PubSub
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.types import AuthScope
-from twitchAPI.helper import first
-from uuid import UUID
 from models import Config
 
 
 class TwitchAPI:
     config: Config
     twitch: Twitch
-    pubsub: PubSub
-    uuid: UUID
     chat_history = []
+    moderators = []
     TESTING: bool = False
     sock = socket.socket()
 
-    def __init__(self, config: Config, callback_whisper,  testing: bool):
+    def __init__(self, config: Config, testing: bool):
         self.config = config
         self.TESTING = testing
-        self.sock.settimeout(2.5)
+        self.sock.settimeout(5)
+        
         print("Initializing Twitch API...")
         asyncio.run(self.init_twitch())
+        
         if config.twitch_api_oauth_token == "": self.get_twitch_oath_token()
         self.initialize_socket()
-        asyncio.run(self.subscribe_to_whispers(callback_whisper))
         print("Twitch API Initialized")
 
 
     def initialize_socket(self):
         self.sock.connect((self.config.twitch_chat_server, self.config.twitch_chat_port))
+        self.sock.send(f"CAP REQ :twitch.tv/tags\n".encode('utf-8'))
         self.sock.send(f"PASS oauth:{self.config.twitch_user_token}\n".encode('utf-8'))
         self.sock.send(f"NICK {self.config.bot_nickname}\n".encode('utf-8'))
         self.sock.send(f"JOIN #{self.config.twitch_channel}\n".encode('utf-8'))
@@ -59,14 +57,24 @@ class TwitchAPI:
             elif len(resp) > 0:
                 messages = resp.split("\n")
                 for message in messages:
-                    if len(message) > 0:
-                        parsed_message = self.parse_message(message)
-                        self.chat_history.append(f"{parsed_message['username']}: {parsed_message['message']}")
-                        if len(self.chat_history) > 20: self.chat_history.pop(0)
-                        message_queue.put(parsed_message)
+                    if not len(message) > 0: continue
+                    
+                    parsed_message = self.parse_message(message)
+                    if not parsed_message: continue
+
+                    self.chat_history.append(f"{parsed_message['username']}: {parsed_message['message']}")
+                    if len(self.chat_history) > 20: self.chat_history.pop(0)
+                    message_queue.put(parsed_message)
 
 
     def parse_message(self, string: str):
+        if "PRIVMSG" not in string: return None
+        
+        splitted = string.split()
+        
+        moderator = "badges=moderator/1" in splitted[0] or "badges=broadcaster/1" in splitted[0]
+
+        string = " ".join(splitted[1:])
         regex = r'^:(?P<user>[a-zA-Z0-9_]{4,25})!\1@\1\.tmi\.twitch\.tv PRIVMSG #(?P<channel>[a-zA-Z0-9_]{4,25}) :(?P<message>.+)$'
         string = demojize(string)
         match = re.match(regex, string)
@@ -76,6 +84,9 @@ class TwitchAPI:
         if match:
             user = match.group('user')
             message = match.group('message').replace("\r", "")
+
+        if moderator and user not in self.moderators:
+            self.moderators.append(user)
 
         return {
             'username': user,
@@ -126,7 +137,7 @@ class TwitchAPI:
         self.twitch = Twitch(self.config.twitch_api_client_id, self.config.twitch_api_client_secret)
         twitch_user_token: str = self.config.twitch_user_token
         refresh_token: str = self.config.twitch_user_refresh_token
-        scope = [AuthScope.WHISPERS_READ, AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
+        scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 
         if self.config.twitch_user_token == "" or self.config.twitch_user_refresh_token == "" or force_refresh:  
             auth = UserAuthenticator(self.twitch, scope, force_verify=False)
@@ -140,27 +151,6 @@ class TwitchAPI:
         await self.twitch.set_user_authentication(twitch_user_token, scope, refresh_token)
         self.config.twitch_user_token = twitch_user_token
         self.config.twitch_user_refresh_token = refresh_token
-
-
-    def stop_listening_to_whispers(self):
-        asyncio.run(self.unsubscribe_from_whispers())
-
-
-    async def subscribe_to_whispers(self, callback_whisper):
-        user = await first(self.twitch.get_users(logins=[self.config.bot_nickname]))
-        if user is not None:
-            # starting up PubSub
-            self.pubsub = PubSub(self.twitch)
-            self.pubsub.start()
-            # you can either start listening before or after you started pubsub.
-            self.uuid = await self.pubsub.listen_whispers(user.id, callback_whisper)
-
-
-    async def unsubscribe_from_whispers(self):
-        if self.pubsub: 
-            await self.pubsub.unlisten(self.uuid)
-            self.pubsub.stop()
-        if self.twitch: await self.twitch.close()
 
 
     def get_chat_history(self):

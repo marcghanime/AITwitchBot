@@ -9,7 +9,7 @@ from time import sleep
 RECORD_TIMOUT = 4
 PHRASE_TIMEOUT = 2
 SAMPLE_RATE = 48000
-VIRTUAL_AUDIO_CABLE_NAME = 'CABLE Output (VB-Audio Virtual'
+VIRTUAL_AUDIO_CABLE_NAME = 'CABLE Output (VB-Audio Virtual '
 
 # Thread safe Queue for passing data from the threaded recording callback.
 DATA_QUEUE = Queue()
@@ -48,12 +48,21 @@ class AudioAPI:
         self.audio_model = whisper.load_model("base.en")
         
         # Find the index of the virtual audio cable.
-        dev_index = 0
+        dev_index = -1
         p = pyaudio.PyAudio()
         for i in range(p.get_device_count()):
             dev = p.get_device_info_by_index(i)
             if (dev['name'] == VIRTUAL_AUDIO_CABLE_NAME and dev['hostApi'] == 0):
                 dev_index = int(dev['index'])
+
+        if dev_index == -1:
+            print("Could not find Virtual Audio Cable Output! Please make sure it is installed and named correctly in AudioAPI.py as VIRTUAL_AUDIO_CABLE_NAME.")
+            print("Here are your current audio devices:\n")
+            for i in range(p.get_device_count()):
+                dev = p.get_device_info_by_index(i)
+                print(f"'{dev['name']}'")
+            print("\nExiting...")
+            exit()
 
         # Create a background thread that will pass us raw audio bytes.
         # We could do this manually but SpeechRecognizer provides a nice helper.

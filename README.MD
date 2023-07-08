@@ -33,7 +33,6 @@ To switch to between them just change the import in `main.py` and `ChatAPI.py` f
 - To input a [command](#Commands) just start typing in the console and press enter.
 
 ## TODO
-- [ ] Add banned words functionality
 - [ ] Add 7tv emote support (use the 7tv API ?)
 - [ ] Figure out a way to fetch the current playing song from spotify
 - [ ] (Optional) Find a better way to caption the stream
@@ -61,6 +60,8 @@ The following commands are available to the mods via !{bot_nickname}. They are a
 + **ban [*username*]** - bans the user, so that the bot will not respond to them
 + **unban [*username*]** - unbans the user
 + **slowmode [*seconds*]** - sets the slow mode for the bot
++ **banword [*word*]** - ignotes all messages containing the given word
++ **unbanword [*word*]** - unbans the word
 
 The following commands are only available from the script console:
 + **op [*message*]** - sends a message in chat as (operator)

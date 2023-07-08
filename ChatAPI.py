@@ -26,6 +26,9 @@ class ChatAPI:
 
 
     def get_response_AI(self, username: str, message: str):
+        found = self.check_banned_words(message)
+        if found: return f"Ignored message containing banned word: '{found}'"
+
         headers = {
             'Authorization': f'Bearer {self.config.openai_api_key}',
             'Content-Type': 'application/json'
@@ -78,6 +81,11 @@ class ChatAPI:
         else:
             self.log_error(response.json(), username, message, request)
             return None
+
+
+    def check_banned_words(self, message: str):
+        banned_words = self.memory.banned_words
+        return next((word for word in banned_words if word in message), None)
 
 
     def log_error(self, response, username: str, message: str, request: str):

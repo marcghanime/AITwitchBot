@@ -22,6 +22,7 @@ class Memory:
     cooldown_time: float = 0.0
     slow_mode_seconds: int = 0
     reaction_time: float = 0.0
+    banned_words: list = field(default_factory=list)
     banned_users: list = field(default_factory=list)
     timed_out_users: dict = field(default_factory=dict) #Dict[str, float]
     conversations: dict = field(default_factory=dict) #Dict[str, list]

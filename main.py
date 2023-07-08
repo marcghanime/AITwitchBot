@@ -17,7 +17,6 @@ message_count: int = 0
 command_help: str = ""
 prompt = ""
 
-#TODO add banned words list
 #TODO add emote support
 #TODO spotify integration
 
@@ -63,7 +62,7 @@ def main():
 def setup_strings():
     global command_help, prompt
 
-    command_help = f"Must be {config.twitch_channel} or a Mod. Usage: !{config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
+    command_help = f"Must be {config.twitch_channel} or a Mod. Usage: !{config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
     prompt = f"Act like an AI twitch chatter with the username {config.bot_nickname}. Try to keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
     prompt += config.prompt_extras
 
@@ -113,6 +112,16 @@ def handle_commands(input: str, external: bool = True) -> None:
         sleep_time: int = int(input.split(" ")[1])
         memory.slow_mode_seconds = sleep_time
         twitch_api.send_message(f"Slow mode set to {sleep_time} seconds!")
+
+    elif input.startswith("banword "):
+        word = input.split(" ", 1)[1]
+        memory.banned_words.append(word)
+        twitch_api.send_message(f"'{word}' added to banned words.")
+
+    elif input.startswith("unbanword "):
+        word = input.split(" ", 1)[1]
+        if word in memory.banned_words: memory.banned_words.remove(word)
+        twitch_api.send_message(f"'{word}' removed from banned words.")
 
     # op <message> - sends a message as the operator
     elif input.startswith("op ") and not external:

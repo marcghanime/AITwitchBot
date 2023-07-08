@@ -63,7 +63,7 @@ class ChatAPI:
 
                 case "length":
                     self.log_error(response.json(), username, message, request)
-                    return self.handle_successfull_response(result, username, message)
+                    return self.handle_successfull_response(result, username, f"{message}...")
 
                 case "content_filter":
                     self.log_error(response.json(), username, message, request)

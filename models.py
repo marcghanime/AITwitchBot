@@ -14,6 +14,7 @@ class Config:
     openai_api_key: str = ""
     openai_api_max_tokens_total: int = 4096
     openai_api_max_tokens_response: int = 200
+    prompt_extras: str = ""
 
 @dataclass
 class Memory:

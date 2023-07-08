@@ -51,7 +51,7 @@ class TwitchAPI:
             elif resp.startswith('PING'):
                 self.sock.send("PONG\n".encode('utf-8'))
 
-            elif resp.startswith(':tmi.twitch.tv') or resp.startswith(':libsgpt'):
+            elif resp.startswith(':tmi.twitch.tv') or resp.startswith(f':{self.config.bot_nickname.lower()}'):
                 pass
 
             elif len(resp) > 0:

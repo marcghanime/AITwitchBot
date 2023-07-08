@@ -51,6 +51,7 @@ To switch to between them just change the import in `main.py` and `ChatAPI.py` f
 - **openai_api_key** - The openai api key [Get it here](https://platform.openai.com/account/api-keys)
 - **openai_api_max_tokens_total** `has a default value` - The max tokens for a single request
 - **openai_api_max_tokens_response** `has a default value` - The max tokens for a single response
+- **prompt_extras** - Extra streamer specific info to be added to the prompt (e.g. the streamers nicknames, age, hobbies, the about section, the art section, etc.)
 
 ## Commands 
 The following commands are available to the mods via !{bot_nickname}. They are also available from the script console:

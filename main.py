@@ -14,9 +14,8 @@ stop_event = threading.Event()
 
 message_count: int = 0
 
-# TODO make these dynamic
-command_help: str = "Must be Libs or a Mod. Usage: !LibsGPT [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
-prompt = "Act like an AI twitch chatter with the username LibsGPT. Try to keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: - About streamer: Name is Skylibs/Libs/bibs, She/Her, Scottish, 21, 5'3, fourth year Aeronautical Engineering student. Loves birds and baking. Favorite fast food place is Taco Bell. - Artwork: Bit badges by Spisky. Sub badges KoyLiang on Etsy. pfp by Jupiem. Emotes by lilypips."
+command_help: str = ""
+prompt = ""
 
 #TODO add banned words list
 #TODO add emote support
@@ -40,26 +39,39 @@ def main():
     
     signal.signal(signal.SIGINT, shutdown_handler)
     
-    # Twitch API
+    # Load data
     config = load_config()
+    memory = load_memory()
+    memory.reaction_time = time.time() + 300 #set the first reaction time to 5 minutes from now
+
+    # Setup
+    setup_strings()
+
+    # Twitch API
     twitch_api = TwitchAPI(config, testing=TESTING)
 
     # Audio API
     audio_api = AudioAPI()
 
     # Chat API
-    memory = load_memory()
-    memory.reaction_time = time.time() + 300 #set the first reaction time to 10 minutes from now
     chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
     
     start_threads()
     cli()
 
 
+def setup_strings():
+    global command_help, prompt
+
+    command_help = f"Must be {config.twitch_channel} or a Mod. Usage: !{config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds]"
+    prompt = f"Act like an AI twitch chatter with the username {config.bot_nickname}. Try to keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
+    prompt += config.prompt_extras
+
+
 def handle_commands(input: str, external: bool = True) -> None:
     global memory
     
-    input = input.lower().replace("!libsgpt ", "").replace("!libsgpt", "")
+    input = input.lower().replace(f"!{config.bot_nickname.lower()} ", "").replace(f"!{config.bot_nickname.lower()}", "")
     
     # reset <username> - clears the conversation memory with the given username
     if input.startswith("reset "):
@@ -131,7 +143,7 @@ def handle_commands(input: str, external: bool = True) -> None:
 
 
 def send_intro():
-    intro_message = f"Hiya, I'm back <3 !LibsGPT for mod commands or checkout my channel pannels."
+    intro_message = f"Hiya, I'm back <3 !{config.bot_nickname} for mod commands or checkout my channel pannels."
     twitch_api.send_message(intro_message)
 
 
@@ -162,9 +174,9 @@ def process_messages():
         username = entry.get('username')
         message = entry.get('message')
             
-        if message.lower().startswith("!libsgpt"):
+        if message.lower().startswith(f"!{config.bot_nickname.lower()}"):
             if username in twitch_api.moderators:
-                if message.lower() == "!libsgpt":
+                if message.lower() == f"!{config.bot_nickname.lower()}":
                     twitch_api.send_message(command_help)
                 else:
                     handle_commands(message)
@@ -175,7 +187,7 @@ def process_messages():
 
         elif react() and moderation(""):
             send_response(config.twitch_channel, f"repond or react to the last things {config.twitch_channel} said based on the captions")
-            memory.reaction_time = time.time() + random.randint(300, 900) # 5-15 minutes
+            memory.reaction_time = time.time() + random.randint(600, 900) # 10-15 minutes
 
         elif engage(message) and moderation(username):
             send_response(username, f"@{config.twitch_channel} {message}")
@@ -225,6 +237,7 @@ def mentioned(username: str, message: str) -> bool:
 
 def engage(message: str) -> bool:
     return message_count > IGNORED_MESSAGE_THRESHOLD and len(message) > LENGTH_MESSAGE_THRESHOLD
+
 
 def react() -> bool:
     return time.time() > memory.reaction_time

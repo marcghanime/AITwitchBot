@@ -16,6 +16,7 @@ message_count: int = 0
 
 command_help: str = ""
 prompt = ""
+react_string = ""
 
 #TODO add emote support
 #TODO spotify integration
@@ -60,11 +61,14 @@ def main():
 
 
 def setup_strings():
-    global command_help, prompt
+    global command_help, prompt, react_string
 
     command_help = f"Must be {config.twitch_channel} or a Mod. Usage: !{config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
+    
     prompt = f"Act like an AI twitch chatter with the username {config.bot_nickname}. Try to keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
     prompt += config.prompt_extras
+
+    react_string = f"repond or react to the last thing {config.twitch_channel} said based only on the provided live captions"
 
 
 def handle_commands(input: str, external: bool = True) -> None:
@@ -195,8 +199,8 @@ def process_messages():
             if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
 
         elif react() and moderation(""):
-            send_response(config.twitch_channel, f"repond or react to the last things {config.twitch_channel} said based on the captions")
-            memory.reaction_time = time.time() + random.randint(600, 900) # 10-15 minutes
+            send_response(config.twitch_channel, react_string)
+            memory.reaction_time = time.time() + random.randint(600, 1200) # 10-20 minutes
 
         elif engage(message) and moderation(username):
             send_response(username, f"@{config.twitch_channel} {message}")
@@ -210,7 +214,9 @@ def cli():
     old_message_count = message_count
     old_token_count = chat_api.get_total_tokens()
 
-    last_captions = audio_api.get_transcription()[-1]
+    try: last_captions = audio_api.get_transcription()[-1]
+    except: last_captions = ""
+
     os.system('cls')
     print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {last_captions}")
 
@@ -221,7 +227,8 @@ def cli():
             handle_commands(user_input, external=False)
         
         elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens():
-            last_captions = audio_api.get_transcription()[-1]
+            try: last_captions = audio_api.get_transcription()[-1]
+            except: last_captions = ""
             os.system('cls')
             print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Last Captions: {last_captions}")
             
@@ -256,7 +263,7 @@ def send_response(username: str, message: str):
     global message_count
     ai_response = chat_api.get_response_AI(username, message)
 
-    if ai_response and username == config.twitch_channel and message == f"repond or react to the last things {config.twitch_channel} said based on the captions":
+    if ai_response and username == config.twitch_channel and message == react_string:
         bot_response = f"{ai_response}"
         twitch_api.send_message(bot_response)
         message_count = 0

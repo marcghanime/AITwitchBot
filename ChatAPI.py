@@ -85,7 +85,7 @@ class ChatAPI:
 
     def check_banned_words(self, message: str):
         banned_words = self.memory.banned_words
-        return next((word for word in banned_words if word in message), None)
+        return next((word for word in banned_words if word.lower() in message.lower()), None)
 
 
     def log_error(self, response, username: str, message: str, request: str):
@@ -139,7 +139,7 @@ class ChatAPI:
             time_live = stream_info.get("time_live")
             stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
 
-        twitch_chat_history = self.twitch_api.get_chat_history()
+        twitch_chat_history = [] if username == self.config.twitch_channel else self.twitch_api.get_chat_history()
         captions = self.audio_api.get_transcription()
 
         new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
@@ -147,14 +147,24 @@ class ChatAPI:
 
         limit: int = self.config.openai_api_max_tokens_total - self.config.openai_api_max_tokens_response - 100 # 100 is a buffer
 
-        while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
-            if len(twitch_chat_history) == 0 and len(captions) == 0: break
-            
-            if len(twitch_chat_history) != 0:  twitch_chat_history.pop(0)
-            if len(captions) != 0: captions.pop(0)
+        try:
+            while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
+                if len(twitch_chat_history) == 0 and len(captions) == 0: break
+                
+                if len(twitch_chat_history) != 0:  twitch_chat_history.pop(0)
+                if len(captions) != 0: captions.pop(0)
 
-            new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
-            self.memory.conversations[username][0]["content"] = new_prompt
+                new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
+                self.memory.conversations[username][0]["content"] = new_prompt
+        except:
+            while len("".join(map(lambda x: x["content"], self.memory.conversations[username]))) > 4 * limit:
+                if len(twitch_chat_history) == 0 and len(captions) == 0: break
+                
+                if len(twitch_chat_history) != 0:  twitch_chat_history.pop(0)
+                if len(captions) != 0: captions.pop(0)
+
+                new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
+                self.memory.conversations[username][0]["content"] = new_prompt
 
 
     def generate_prompt_extras(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
@@ -190,9 +200,9 @@ class ChatAPI:
         return message
 
     def remove_quotations(self, text: str):
-        if text.startswith('"') and text.endswith('"'):
-            return str(text[1:-1])
-        return text
+        while text.startswith('"') and text.endswith('"'):
+            text = str(text[1:-1])
+        return str(text)
 
     def remove_mentions(self, text: str, username: str):
         text = text.replace("@User", "").replace("@user", "").replace(f"@{self.config.bot_nickname}", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace(f"{self.config.bot_nickname}:", "")

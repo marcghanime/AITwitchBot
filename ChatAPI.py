@@ -25,7 +25,7 @@ class ChatAPI:
         self.TESTING = testing
 
 
-    def get_response_AI(self, username: str, message: str):
+    def get_response_AI(self, username: str, message: str, no_twitch_chat: bool = False, no_audio_context: bool = False):
         found = self.check_banned_words(message)
         if found: return f"Ignored message containing banned word: '{found}'"
 
@@ -34,7 +34,7 @@ class ChatAPI:
             'Content-Type': 'application/json'
         }
 
-        self.add_message_to_conversation(username, message, role="user")
+        self.add_message_to_conversation(username, message, role="user", no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
 
         data = {
             "model": "gpt-3.5-turbo",
@@ -115,7 +115,7 @@ class ChatAPI:
     def handle_successfull_response(self, result, username: str, message: str):
             message = result['choices'][0]['message']['content']
             cleaned_message = self.clean_message(message, username)
-            self.add_message_to_conversation(username, cleaned_message, role="assistant")
+            self.add_message_to_conversation(username, cleaned_message, role="assistant", no_twitch_chat=False, no_audio_context=False)
             return cleaned_message
 
 
@@ -128,7 +128,7 @@ class ChatAPI:
         ]
 
 
-    def update_prompt(self, username: str):
+    def update_prompt(self, username: str, no_twitch_chat: bool, no_audio_context: bool):
         stream_info = None
         stream_info_string = ""
 
@@ -139,8 +139,8 @@ class ChatAPI:
             time_live = stream_info.get("time_live")
             stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
 
-        twitch_chat_history = [] if username == self.config.twitch_channel else self.twitch_api.get_chat_history()
-        captions = self.audio_api.get_transcription()
+        twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
+        captions = [] if no_audio_context else self.audio_api.get_transcription()
 
         new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
@@ -168,12 +168,19 @@ class ChatAPI:
 
 
     def generate_prompt_extras(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
-        twitch_chat_history_string = f"- Recents messages in Twitch chat: {' | '.join(twitch_chat_history)}"
-        caption_string = f"- Live captions of what {self.config.twitch_channel} is currently saying: '{' '.join(captions)}'"
+        twitch_chat_history_string = ""
+        caption_string = ""
+        
+        if len(twitch_chat_history) > 0:
+            twitch_chat_history_string = f" - Recents messages in Twitch chat: {' | '.join(twitch_chat_history)}"
+        
+        if len(captions) > 0:
+            caption_string = f" - Live captions of what {self.config.twitch_channel} is currently saying: '{' '.join(captions)}'"
+
         return self.prompt + stream_info_string + caption_string + twitch_chat_history_string
 
 
-    def add_message_to_conversation(self, username: str, message: str, role: str):
+    def add_message_to_conversation(self, username: str, message: str, role: str, no_twitch_chat: bool, no_audio_context: bool):
         if username not in self.memory.conversations:
             self.init_conversation(username)
 
@@ -187,7 +194,7 @@ class ChatAPI:
             "content": message
         })
 
-        self.update_prompt(username)
+        self.update_prompt(username, no_twitch_chat, no_audio_context)
 
 
     # Remove unwanted charachters from the message

@@ -6,6 +6,12 @@ from models import Config, Memory
 
 TESTING: bool = True
 
+DETECTION_WORDS = ["libs gpt", "libsgpt", "gpt", "sheepy tea"]
+TRANSCRIPTION_MISTAKES = {
+    "libs": ["lips", "looks"], 
+    "gpt": ["gpc", "gpg", "gbc"]
+}
+
 # Thread variables
 listening_thread = None
 processing_thread = None
@@ -46,12 +52,13 @@ def main():
 
     # Setup
     setup_strings()
+    add_mistakes_to_detection_words()
 
     # Twitch API
     twitch_api = TwitchAPI(config, testing=TESTING)
 
     # Audio API
-    audio_api = AudioAPI()
+    audio_api = AudioAPI(DETECTION_WORDS, mentioned_verbally)
 
     # Chat API
     chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
@@ -199,7 +206,7 @@ def process_messages():
             if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
 
         elif react() and moderation(""):
-            send_response(config.twitch_channel, react_string)
+            send_response(config.twitch_channel, react_string, react=True)
             memory.reaction_time = time.time() + random.randint(600, 1200) # 10-20 minutes
 
         elif engage(message) and moderation(username):
@@ -259,23 +266,60 @@ def react() -> bool:
     return time.time() > memory.reaction_time
 
 
-def send_response(username: str, message: str):
+def send_response(username: str, message: str, react: bool = False, respond: bool = False):
     global message_count
-    ai_response = chat_api.get_response_AI(username, message)
+    bot_response = None
 
-    if ai_response and username == config.twitch_channel and message == react_string:
-        bot_response = f"{ai_response}"
-        twitch_api.send_message(bot_response)
-        message_count = 0
-        
-        # remove the last 2 messages from the memory to prevent the bot from influencing itself
-        memory.conversations[config.twitch_channel].pop(-1)
-        memory.conversations[config.twitch_channel].pop(-1)
+    if react:
+        ai_response = chat_api.get_response_AI(username, message, no_twitch_chat=True)
+        if ai_response: bot_response = f"{ai_response}"
+
+    elif respond:
+        ai_response = chat_api.get_response_AI(username, message, no_audio_context=True)
+        if ai_response: bot_response = f"@{username} {ai_response}"
     
-    elif ai_response:
-        bot_response = f"@{username} {ai_response}"
+    else:
+        ai_response = chat_api.get_response_AI(username, message)
+        if ai_response: bot_response = f"@{username} {ai_response}"
+
+    if bot_response:
         twitch_api.send_message(bot_response)
         message_count = 0
+
+
+def mentioned_verbally():
+    lines = audio_api.get_detected_lines()
+    audio_transcription = audio_api.get_transcription()
+    
+    respond: bool = False
+    transctiption_index = None
+
+    for detection_index, entry in enumerate(lines):
+        line: str = entry['line']
+        fixed_line: str = entry['fixed_line']
+        responded: bool = entry['responded']
+
+        transctiption_index = audio_transcription.index(line)
+        audio_transcription[transctiption_index] = fixed_line
+       
+        if not responded and not respond: 
+            respond = True
+            audio_api.detected_lines[detection_index]['responded'] = True
+
+    if respond and transctiption_index:
+        captions = " ".join(audio_transcription[transctiption_index - 2 : transctiption_index + 4])
+        message = f"Skylibs talked to/about you ({config.bot_nickname}) in the following captions: '{captions}' only respond to what she said to/about you ({config.bot_nickname})"
+        send_response(config.twitch_channel, message, respond=True)
+
+    
+# Adds all possible transcription mistakes to the detection words
+def add_mistakes_to_detection_words():
+    for correct, wrong_list in TRANSCRIPTION_MISTAKES.items():
+        word_list = filter(lambda x: correct in x, DETECTION_WORDS)
+        for word in word_list:
+            index = DETECTION_WORDS.index(word)
+            wrong_words = list(map(lambda wrong: word.replace(correct, wrong), wrong_list))
+            DETECTION_WORDS[index + 1 : index + 1] = wrong_words       
 
 
 def load_config() -> Config:

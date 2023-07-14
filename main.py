@@ -308,7 +308,7 @@ def mentioned_verbally():
 
     if respond and transctiption_index:
         captions = " ".join(audio_transcription[transctiption_index - 2 : transctiption_index + 4])
-        message = f"Skylibs talked to/about you ({config.bot_nickname}) in the following captions: '{captions}' only respond to what she said to/about you ({config.bot_nickname})"
+        message = f"{config.twitch_channel} talked to/about you ({config.bot_nickname}) in the following captions: '{captions}' only respond to what they said to/about you ({config.bot_nickname})"
         send_response(config.twitch_channel, message, respond=True)
 
     

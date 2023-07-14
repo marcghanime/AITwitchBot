@@ -6,7 +6,6 @@ from models import Config, Memory
 
 TESTING: bool = True
 
-DETECTION_WORDS = ["libs gpt", "libsgpt", "gpt", "sheepy tea"]
 TRANSCRIPTION_MISTAKES = {
     "libs": ["lips", "looks"], 
     "gpt": ["gpc", "gpg", "gbc"]
@@ -58,7 +57,7 @@ def main():
     twitch_api = TwitchAPI(config, testing=TESTING)
 
     # Audio API
-    audio_api = AudioAPI(DETECTION_WORDS, mentioned_verbally)
+    audio_api = AudioAPI(config, mentioned_verbally)
 
     # Chat API
     chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
@@ -154,6 +153,11 @@ def handle_commands(input: str, external: bool = True) -> None:
         username = "testuser"
         message = input.split(" ", 1)[1]
         if TESTING: send_response(username, message)
+
+    # add-det-word <word> - adds a word to the detection words
+    elif input.startswith("add-det-word ") and not external:
+        word = input.split(" ", 1)[1]
+        config.detection_words.append(word)
     
     elif input == ("intro") and not external:
         if not TESTING: send_intro()
@@ -315,11 +319,12 @@ def mentioned_verbally():
 # Adds all possible transcription mistakes to the detection words
 def add_mistakes_to_detection_words():
     for correct, wrong_list in TRANSCRIPTION_MISTAKES.items():
-        word_list = filter(lambda x: correct in x, DETECTION_WORDS)
+        word_list = filter(lambda x: correct in x, config.detection_words)
         for word in word_list:
-            index = DETECTION_WORDS.index(word)
+            index = config.detection_words.index(word)
             wrong_words = list(map(lambda wrong: word.replace(correct, wrong), wrong_list))
-            DETECTION_WORDS[index + 1 : index + 1] = wrong_words       
+            wrong_words = list(filter(lambda word: word not in config.detection_words, wrong_words))
+            config.detection_words[index + 1 : index + 1] = wrong_words       
 
 
 def load_config() -> Config:

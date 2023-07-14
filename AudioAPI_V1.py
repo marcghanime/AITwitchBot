@@ -1,19 +1,20 @@
 import pygetwindow, pyautogui, pytesseract, threading
 from typing import List, Callable
 import string, re
+from models import Config
 
 
 class AudioAPI:
     # Audio context thread variables
     transcription = ['']
-    detection_words = []
+    config = Config
     detected_lines = []
     translator = str.maketrans('', '', string.punctuation)
     verbal_mention_callback: Callable[[], None]
 
-    def __init__(self, detection_words, verbal_mention_callback: Callable[[], None]):
+    def __init__(self, config: Config, verbal_mention_callback: Callable[[], None]):
         self.verbal_mention_callback = verbal_mention_callback
-        self.detection_words = detection_words
+        self.config = config
 
 
     def listen_to_audio(self, stop_event: threading.Event):
@@ -46,10 +47,10 @@ class AudioAPI:
         for line in lines:
             #remove punctuation
             stripped_line = line.translate(self.translator)
-            found = next((word for word in self.detection_words if word in stripped_line.lower()), None)
+            found = next((word for word in self.config.detection_words if word in stripped_line.lower()), None)
             if found:
                 # Replace the word with LibsGPT
-                fixed_line = re.sub(r'\b{}\b'.format(found), "LibsGPT", stripped_line, flags=re.IGNORECASE)
+                fixed_line = re.sub(r'\b{}\b'.format(found), self.config.bot_nickname, stripped_line, flags=re.IGNORECASE)
                 # Add the line to the detected lines
                 self.detected_lines.append({"line": line, "fixed_line": fixed_line, "responded": False})
                 detected = True

@@ -211,7 +211,7 @@ def process_messages():
 
         elif react() and moderation(""):
             send_response(config.twitch_channel, react_string, react=True)
-            memory.reaction_time = time.time() + random.randint(600, 1200) # 10-20 minutes
+            memory.reaction_time = time.time() + random.randint(900, 1200) # 15-20 minutes
 
         elif engage(message) and moderation(username):
             send_response(username, f"@{config.twitch_channel} {message}")

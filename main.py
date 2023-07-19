@@ -6,6 +6,11 @@ from models import Config, Memory
 
 TESTING: bool = True
 
+TRANSCRIPTION_MISTAKES = {
+    "libs": ["lips", "looks"], 
+    "gpt": ["gpc", "gpg", "gbc"]
+}
+
 # Thread variables
 listening_thread = None
 processing_thread = None
@@ -46,12 +51,13 @@ def main():
 
     # Setup
     setup_strings()
+    add_mistakes_to_detection_words()
 
     # Twitch API
     twitch_api = TwitchAPI(config, testing=TESTING)
 
     # Audio API
-    audio_api = AudioAPI()
+    audio_api = AudioAPI(config, mentioned_verbally)
 
     # Chat API
     chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
@@ -147,6 +153,11 @@ def handle_commands(input: str, external: bool = True) -> None:
         username = "testuser"
         message = input.split(" ", 1)[1]
         if TESTING: send_response(username, message)
+
+    # add-det-word <word> - adds a word to the detection words
+    elif input.startswith("add-det-word ") and not external:
+        word = input.split(" ", 1)[1]
+        config.detection_words.append(word)
     
     elif input == ("intro") and not external:
         if not TESTING: send_intro()
@@ -199,8 +210,8 @@ def process_messages():
             if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
 
         elif react() and moderation(""):
-            send_response(config.twitch_channel, react_string)
-            memory.reaction_time = time.time() + random.randint(600, 1200) # 10-20 minutes
+            send_response(config.twitch_channel, react_string, react=True)
+            memory.reaction_time = time.time() + random.randint(900, 1200) # 15-20 minutes
 
         elif engage(message) and moderation(username):
             send_response(username, f"@{config.twitch_channel} {message}")
@@ -213,6 +224,7 @@ def process_messages():
 def cli():
     old_message_count = message_count
     old_token_count = chat_api.get_total_tokens()
+    old_last_captions = ""
 
     try: last_captions = audio_api.get_transcription()[-1]
     except: last_captions = ""
@@ -221,19 +233,21 @@ def cli():
     print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {last_captions}")
 
     while True: 
-    # Check if there is input available on stdin
+        try: last_captions = audio_api.get_transcription()[-1]
+        except: last_captions = ""
+        
+        # Check if there is input available on stdin
         if msvcrt.kbhit():
             user_input = input("Enter something: ")
             handle_commands(user_input, external=False)
         
-        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens():
-            try: last_captions = audio_api.get_transcription()[-1]
-            except: last_captions = ""
+        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens() or old_last_captions != last_captions:
             os.system('cls')
             print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Last Captions: {last_captions}")
             
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
+            old_last_captions = last_captions
             
             time.sleep(1)
 
@@ -259,23 +273,61 @@ def react() -> bool:
     return time.time() > memory.reaction_time
 
 
-def send_response(username: str, message: str):
+def send_response(username: str, message: str, react: bool = False, respond: bool = False):
     global message_count
-    ai_response = chat_api.get_response_AI(username, message)
+    bot_response = None
 
-    if ai_response and username == config.twitch_channel and message == react_string:
-        bot_response = f"{ai_response}"
-        twitch_api.send_message(bot_response)
-        message_count = 0
-        
-        # remove the last 2 messages from the memory to prevent the bot from influencing itself
-        memory.conversations[config.twitch_channel].pop(-1)
-        memory.conversations[config.twitch_channel].pop(-1)
+    if react:
+        ai_response = chat_api.get_response_AI(username, message, no_twitch_chat=True)
+        if ai_response: bot_response = f"{ai_response}"
+
+    elif respond:
+        ai_response = chat_api.get_response_AI(username, message, no_audio_context=True)
+        if ai_response: bot_response = f"@{username} {ai_response}"
     
-    elif ai_response:
-        bot_response = f"@{username} {ai_response}"
+    else:
+        ai_response = chat_api.get_response_AI(username, message)
+        if ai_response: bot_response = f"@{username} {ai_response}"
+
+    if bot_response:
         twitch_api.send_message(bot_response)
         message_count = 0
+
+
+def mentioned_verbally():
+    lines = audio_api.get_detected_lines()
+    audio_transcription = audio_api.get_transcription()
+    
+    respond: bool = False
+    transctiption_index = None
+
+    for detection_index, entry in enumerate(lines):
+        line: str = entry['line']
+        fixed_line: str = entry['fixed_line']
+        responded: bool = entry['responded']
+
+        transctiption_index = audio_transcription.index(line)
+        audio_transcription[transctiption_index] = fixed_line
+       
+        if not responded and not respond: 
+            respond = True
+            audio_api.detected_lines[detection_index]['responded'] = True
+
+    if respond and transctiption_index:
+        captions = " ".join(audio_transcription[transctiption_index - 2 : transctiption_index + 4])
+        message = f"{config.twitch_channel} talked to/about you ({config.bot_nickname}) in the following captions: '{captions}' only respond to what they said to/about you ({config.bot_nickname})"
+        send_response(config.twitch_channel, message, respond=True)
+
+    
+# Adds all possible transcription mistakes to the detection words
+def add_mistakes_to_detection_words():
+    for correct, wrong_list in TRANSCRIPTION_MISTAKES.items():
+        word_list = filter(lambda x: correct in x, config.detection_words)
+        for word in word_list:
+            index = config.detection_words.index(word)
+            wrong_words = list(map(lambda wrong: word.replace(correct, wrong), wrong_list))
+            wrong_words = list(filter(lambda word: word not in config.detection_words, wrong_words))
+            config.detection_words[index + 1 : index + 1] = wrong_words       
 
 
 def load_config() -> Config:

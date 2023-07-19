@@ -157,14 +157,7 @@ class ChatAPI:
                 new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
                 self.memory.conversations[username][0]["content"] = new_prompt
         except:
-            while len("".join(map(lambda x: x["content"], self.memory.conversations[username]))) > 4 * limit:
-                if len(twitch_chat_history) == 0 and len(captions) == 0: break
-                
-                if len(twitch_chat_history) != 0:  twitch_chat_history.pop(0)
-                if len(captions) != 0: captions.pop(0)
-
-                new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
-                self.memory.conversations[username][0]["content"] = new_prompt
+            self.log_error(self.memory.conversations[username], username, "ERROR IN UPDATE PROMPT", "")
 
 
     def generate_prompt_extras(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):

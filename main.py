@@ -224,6 +224,7 @@ def process_messages():
 def cli():
     old_message_count = message_count
     old_token_count = chat_api.get_total_tokens()
+    old_last_captions = ""
 
     try: last_captions = audio_api.get_transcription()[-1]
     except: last_captions = ""
@@ -232,19 +233,21 @@ def cli():
     print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {last_captions}")
 
     while True: 
-    # Check if there is input available on stdin
+        try: last_captions = audio_api.get_transcription()[-1]
+        except: last_captions = ""
+        
+        # Check if there is input available on stdin
         if msvcrt.kbhit():
             user_input = input("Enter something: ")
             handle_commands(user_input, external=False)
         
-        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens():
-            try: last_captions = audio_api.get_transcription()[-1]
-            except: last_captions = ""
+        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens() or old_last_captions != last_captions:
             os.system('cls')
             print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Last Captions: {last_captions}")
             
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
+            old_last_captions = last_captions
             
             time.sleep(1)
 

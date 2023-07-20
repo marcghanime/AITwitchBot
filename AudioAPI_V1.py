@@ -2,17 +2,21 @@ import pygetwindow, pyautogui, pytesseract, threading
 from typing import List, Callable
 import string, re
 from models import Config
+from queue import Queue
 
 
 class AudioAPI:
     # Audio context thread variables
     transcription = ['']
+    transcription_queue1 = Queue()
+    transcription_queue2 = Queue()
     config = Config
     detected_lines = []
+    detected_lines_queue = Queue()
     translator = str.maketrans('', '', string.punctuation)
-    verbal_mention_callback: Callable[[], None]
+    verbal_mention_callback: Callable[[List[str]], None]
 
-    def __init__(self, config: Config, verbal_mention_callback: Callable[[], None]):
+    def __init__(self, config: Config, verbal_mention_callback: Callable[[List[str]], None]):
         self.verbal_mention_callback = verbal_mention_callback
         self.config = config
 
@@ -34,7 +38,13 @@ class AudioAPI:
                 if len(self.transcription) > 50: self.transcription = self.transcription[-50:]
 
                 if self.verbal_mention_detected(text):
-                    self.verbal_mention_callback()
+                    self.verbal_mention_callback(self.transcription.copy())
+
+                with self.transcription_queue1.mutex: self.transcription_queue1.queue.clear()
+                self.transcription_queue1.put(self.transcription.copy())
+
+                with self.transcription_queue2.mutex: self.transcription_queue2.queue.clear()
+                self.transcription_queue2.put(self.transcription.copy())
 
 
     def verbal_mention_detected(self, text: str):
@@ -53,6 +63,9 @@ class AudioAPI:
                 fixed_line = re.sub(r'\b{}\b'.format(found), self.config.bot_nickname, stripped_line, flags=re.IGNORECASE)
                 # Add the line to the detected lines
                 self.detected_lines.append({"line": line, "fixed_line": fixed_line, "responded": False})
+                with self.detected_lines_queue.mutex: self.detected_lines_queue.queue.clear()
+                self.detected_lines_queue.put(self.detected_lines.copy())
+                
                 detected = True
         
         return detected
@@ -68,7 +81,3 @@ class AudioAPI:
 
     def get_detected_lines(self):
         return self.detected_lines.copy()
-
-
-    def get_transcription(self) -> List[str]:
-        return self.transcription.copy()

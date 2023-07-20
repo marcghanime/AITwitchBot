@@ -1,9 +1,12 @@
-import io, whisper, torch, pyaudio, threading
+import io, pyaudio, threading, string, re
 import speech_recognition as sr
 from datetime import datetime, timedelta
 from queue import Queue
 from tempfile import NamedTemporaryFile
-from time import sleep                
+from time import sleep
+from faster_whisper import WhisperModel
+from models import Config
+from typing import Callable, List
 
 
 RECORD_TIMOUT = 4
@@ -37,15 +40,25 @@ class AudioAPI:
     
     temp_file = NamedTemporaryFile().name
     transcription = ['']
+    transcription_queue1 = Queue()
+    transcription_queue2 = Queue()
+    config = Config
+    verbal_mention_callback: Callable[[List[str]], None]
+    detected_lines = []
+    detected_lines_queue = Queue()
+    translator = str.maketrans('', '', string.punctuation)
 
-    audio_model: whisper.Whisper
+    audio_model: WhisperModel
     source: sr.Microphone
 
-    def __init__(self):
+    def __init__(self, config: Config, verbal_mention_callback: Callable[[List[str]], None]):
         print("Initializing Audio API...")
 
-        # Load the model.    
-        self.audio_model = whisper.load_model("base.en")
+        self.verbal_mention_callback = verbal_mention_callback
+        self.config = config
+
+        # Load the model.
+        self.audio_model = WhisperModel("base.en", device="cpu", compute_type="int8")
         
         # Find the index of the virtual audio cable.
         dev_index = -1
@@ -90,9 +103,11 @@ class AudioAPI:
                 self.phrase_time = now
 
                 # Concatenate our current audio data with the latest audio data.
-                while not DATA_QUEUE.empty():
+                index = 0
+                while not DATA_QUEUE.empty() and index < 2:
                     data = DATA_QUEUE.get()
                     self.last_sample += data
+                    index += 1
 
                 # Use AudioData to convert the raw data to wav data.
                 audio_data = sr.AudioData(self.last_sample, self.source.SAMPLE_RATE, self.source.SAMPLE_WIDTH)
@@ -102,10 +117,12 @@ class AudioAPI:
                 with open(self.temp_file, 'w+b') as f:
                     f.write(wav_data.read())
 
+                text = ""
                 # Read the transcription.
-                result = self.audio_model.transcribe(self.temp_file, fp16=torch.cuda.is_available())
-                text = str(result['text']).strip()
-
+                segments, _ = self.audio_model.transcribe(self.temp_file, beam_size=5)
+                for segment in segments:
+                    text += segment.text
+                
                 text = text.replace("fuck", "f***").replace("Fuck", "F***")
 
                 # If we detected a pause between recordings, add a new item to our transcripion.
@@ -117,10 +134,19 @@ class AudioAPI:
                     self.transcription[-1] = text
 
                 # keep only the last 20 sentences
-                if len(self.transcription) > 20: self.transcription[-20:]
+                if len(self.transcription) > 30: self.transcription = self.transcription[-30:]
+
+                if self.verbal_mention_detected(text):
+                    self.verbal_mention_callback(self.transcription.copy())
+
+                with self.transcription_queue1.mutex: self.transcription_queue1.queue.clear()
+                self.transcription_queue1.put(self.transcription.copy())
+
+                with self.transcription_queue2.mutex: self.transcription_queue2.queue.clear()
+                self.transcription_queue2.put(self.transcription.copy())
 
                 # Infinite loops are bad for processors, must sleep.
-                sleep(0.25)
+                sleep(0.1)
 
     # we need to do this since we keep the last second of the last recording in the new recording
     # this leeds to better results since the last word is not cut off
@@ -129,8 +155,11 @@ class AudioAPI:
         ends_with_dot: bool = first_string.endswith(".")
         ends_with_three_dots: bool = first_string.endswith("...")
 
+        splitted_first_string = first_string.split()
+        splitted_second_string = second_string.split()
+
         # remove the last word
-        last_word = first_string.split()[-1]
+        last_word = "" if len(splitted_first_string) == 0 else first_string.split()[-1]
         first_string = " ".join(first_string.split()[:-1]).strip()
 
         first_string_lower = first_string.lower()
@@ -155,7 +184,7 @@ class AudioAPI:
         if overlap: first_string = first_string[:-len(overlap)]
 
         # if no overlap and the last word isn't in second_string, add it back to first_string
-        if not overlap and second_string.split()[0] != last_word: 
+        if not overlap and len(splitted_second_string) > 0 and splitted_second_string[0] != last_word: 
             first_string = f"{first_string} {last_word}"
         
         # remove trailing and starting whitespaces
@@ -166,5 +195,26 @@ class AudioAPI:
         
         return first_string
     
-    def get_transcription(self):
-        return self.transcription.copy()
+    
+    def verbal_mention_detected(self, text: str):
+        detected = False
+        
+        lines = text.splitlines()[:-2]
+        previous_detected_lines = list(map(lambda line: line["line"], self.detected_lines))
+        lines = filter(lambda line: line not in previous_detected_lines, lines)
+
+        for line in lines:
+            #remove punctuation
+            stripped_line = line.translate(self.translator)
+            found = next((word for word in self.config.detection_words if word in stripped_line.lower()), None)
+            if found:
+                # Replace the word with LibsGPT
+                fixed_line = re.sub(r'\b{}\b'.format(found), self.config.bot_nickname, stripped_line, flags=re.IGNORECASE)
+                # Add the line to the detected lines
+                self.detected_lines.append({"line": line, "fixed_line": fixed_line, "responded": False})
+                
+                with self.detected_lines_queue.mutex: self.detected_lines_queue.queue.clear()
+                self.detected_lines_queue.put(self.detected_lines.copy())
+                detected = True
+        
+        return detected

@@ -1,8 +1,9 @@
 import signal, threading, sys, queue, os, msvcrt, json, time, dataclasses, random
 from ChatAPI import ChatAPI, Memory
 from TwitchAPI import TwitchAPI
-from AudioAPI_V1 import AudioAPI
+from AudioAPI import AudioAPI
 from models import Config, Memory
+from typing import List
 
 TESTING: bool = True
 
@@ -71,7 +72,7 @@ def setup_strings():
 
     command_help = f"Must be {config.twitch_channel} or a Mod. Usage: !{config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
     
-    prompt = f"Act like an AI twitch chatter with the username {config.bot_nickname}. Try to keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
+    prompt = f"Act like an AI twitch chatter with the username {config.bot_nickname}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
     prompt += config.prompt_extras
 
     react_string = f"repond or react to the last thing {config.twitch_channel} said based only on the provided live captions"
@@ -225,16 +226,14 @@ def cli():
     old_message_count = message_count
     old_token_count = chat_api.get_total_tokens()
     old_last_captions = ""
-
-    try: last_captions = audio_api.get_transcription()[-1]
-    except: last_captions = ""
+    last_captions = ""
 
     os.system('cls')
     print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {last_captions}")
 
-    while True: 
-        try: last_captions = audio_api.get_transcription()[-1]
-        except: last_captions = ""
+    while True:
+        try: last_captions = audio_api.transcription_queue1.get(timeout=1)[-1]
+        except: last_captions = old_last_captions
         
         # Check if there is input available on stdin
         if msvcrt.kbhit():
@@ -248,8 +247,8 @@ def cli():
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
             old_last_captions = last_captions
-            
-            time.sleep(1)
+
+        time.sleep(1)
 
 
 def moderation(username: str) -> bool:
@@ -294,10 +293,8 @@ def send_response(username: str, message: str, react: bool = False, respond: boo
         message_count = 0
 
 
-def mentioned_verbally():
-    lines = audio_api.get_detected_lines()
-    audio_transcription = audio_api.get_transcription()
-    
+def mentioned_verbally(audio_transcription: List[str]):
+    lines = audio_api.detected_lines_queue.get()
     respond: bool = False
     transctiption_index = None
 

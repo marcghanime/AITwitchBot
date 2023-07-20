@@ -1,7 +1,7 @@
 import requests, json, re, time, tiktoken
 from typing import List
 from TwitchAPI import TwitchAPI
-from AudioAPI_V1 import AudioAPI
+from AudioAPI import AudioAPI
 from models import Memory, Config 
 
 LINK_REGEX = r"\b[\w.-]+\.[\w.-]+\b"
@@ -140,7 +140,7 @@ class ChatAPI:
             stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
 
         twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
-        captions = [] if no_audio_context else self.audio_api.get_transcription()
+        captions = [] if no_audio_context else self.audio_api.transcription_queue2.get()
 
         new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt

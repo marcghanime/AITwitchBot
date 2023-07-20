@@ -1,12 +1,12 @@
 import json
 from models import Config
 import dataclasses
-import whisper
 import pyaudio
+from faster_whisper import WhisperModel
 
 def main():
     print("checking/downloading whisper model...")
-    whisper.load_model("base.en")
+    WhisperModel("base.en", device="cpu", compute_type="int8")
 
     try:
         with open("config.json", "r") as infile:

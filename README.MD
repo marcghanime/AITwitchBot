@@ -20,7 +20,6 @@ To switch to between them just change the import in `main.py` and `ChatAPI.py` f
 ## Requirements
 - Python 3.6+ [Download](https://www.python.org/downloads/)
 - (1) Virtual Audio Cable [Download](https://vb-audio.com/Cable/)
-- (1) GPU execution requires the NVIDIA libraries cuBLAS 11.x and cuDNN 8.x to be installed on the system. Please refer to the [CTranslate2 documentation](https://opennmt.net/CTranslate2/installation.html)
 - (2) Tesseract [Download](https://tesseract-ocr.github.io/tessdoc/Downloads.html)
 
 ## Setup

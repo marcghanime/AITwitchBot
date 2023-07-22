@@ -231,7 +231,7 @@ def cli():
     os.system('cls')
     print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {last_captions}")
 
-    while True:
+    while not stop_event.is_set():
         try: last_captions = audio_api.transcription_queue1.get(timeout=1)[-1]
         except: last_captions = old_last_captions
         

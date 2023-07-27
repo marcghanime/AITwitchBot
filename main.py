@@ -8,7 +8,7 @@ import json
 import time
 import dataclasses
 import random
-from ChatAPI import ChatAPI, Memory
+from ChatAPI import ChatAPI
 from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
 from models import Config, Memory

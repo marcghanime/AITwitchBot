@@ -1,7 +1,7 @@
 # TwitchBot
 
 ## :warning: Warning
-I only tested this on windows so I don't know if it works on other operating systems. But it should.
+I only tested this on windows so I don't know if it works on other operating systems. **But it should**.
 
 ## Requirements
 - Python 3.6+ [Download](https://www.python.org/downloads/)

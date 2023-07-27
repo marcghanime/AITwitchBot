@@ -1,11 +1,19 @@
-import requests, json, re, time, tiktoken
+import json
+import re
+import time
 from typing import List
+
+import tiktoken
+import requests
+
 from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
-from models import Memory, Config 
+from models import Memory, Config
+
 
 LINK_REGEX = r"\b[\w.-]+\.[\w.-]+\b"
 API_URL = "https://api.openai.com/v1/chat/completions"
+
 
 class ChatAPI:
     config: Config
@@ -24,17 +32,18 @@ class ChatAPI:
         self.prompt = prompt
         self.TESTING = testing
 
-
     def get_response_AI(self, username: str, message: str, no_twitch_chat: bool = False, no_audio_context: bool = False):
         found = self.check_banned_words(message)
-        if found: return f"Ignored message containing banned word: '{found}'"
+        if found:
+            return f"Ignored message containing banned word: '{found}'"
 
         headers = {
             'Authorization': f'Bearer {self.config.openai_api_key}',
             'Content-Type': 'application/json'
         }
 
-        self.add_message_to_conversation(username, message, role="user", no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
+        self.add_message_to_conversation(
+            username, message, role="user", no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
 
         data = {
             "model": "gpt-3.5-turbo",
@@ -42,7 +51,11 @@ class ChatAPI:
             "messages": self.memory.conversations[username]
         }
         request = json.dumps(data)
-        response = requests.post(API_URL, headers=headers, data=request)
+
+        try:
+            response = requests.post(API_URL, headers=headers, data=request, timeout=10)
+        except requests.exceptions.Timeout:
+            return None
 
         # Successful response
         if response.status_code == 200:
@@ -52,13 +65,16 @@ class ChatAPI:
             tokens_used = 0
             try:
                 tokens_used = result['usage']['total_tokens']
-            except: pass
+            except:
+                pass
+
             self.memory.total_tokens += tokens_used
 
             # Get finish reason
             try:
                 finish_reason: str = result['choices'][0]['finish_reason']
-            except: finish_reason = "error"
+            except:
+                finish_reason = "error"
 
             match finish_reason:
                 case "stop":
@@ -82,11 +98,9 @@ class ChatAPI:
             self.log_error(response.json(), username, message, request)
             return None
 
-
     def check_banned_words(self, message: str):
         banned_words = self.memory.banned_words
         return next((word for word in banned_words if word.lower() in message.lower()), None)
-
 
     def log_error(self, response, username: str, message: str, request: str):
         data = {
@@ -99,7 +113,7 @@ class ChatAPI:
 
         # Load the existing JSON file
         try:
-            with open("logs.json", "r") as f:
+            with open("logs.json", "r", encoding='utf-8') as f:
                 logs = json.load(f)
         except json.decoder.JSONDecodeError:
             logs = []
@@ -108,16 +122,15 @@ class ChatAPI:
         logs.append(data)
 
         # Write the updated JSON back to the file
-        with open("logs.json", "w") as f:
+        with open("logs.json", "w", encoding='utf-8') as f:
             json.dump(logs, f, indent=4)
 
-
     def handle_successfull_response(self, result, username: str, message: str):
-            message = result['choices'][0]['message']['content']
-            cleaned_message = self.clean_message(message, username)
-            self.add_message_to_conversation(username, cleaned_message, role="assistant", no_twitch_chat=False, no_audio_context=False)
-            return cleaned_message
-
+        message = result['choices'][0]['message']['content']
+        cleaned_message = self.clean_message(message, username)
+        self.add_message_to_conversation(
+            username, cleaned_message, role="assistant", no_twitch_chat=False, no_audio_context=False)
+        return cleaned_message
 
     def init_conversation(self, username: str):
         self.memory.conversations[username] = [
@@ -127,12 +140,12 @@ class ChatAPI:
             }
         ]
 
-
     def update_prompt(self, username: str, no_twitch_chat: bool, no_audio_context: bool):
         stream_info = None
         stream_info_string = ""
 
-        if not self.TESTING: stream_info = self.twitch_api.get_stream_info()
+        if not self.TESTING:
+            stream_info = self.twitch_api.get_stream_info()
         if stream_info:
             game_name = stream_info.get("game_name")
             viewer_count = stream_info.get("viewer_count")
@@ -142,36 +155,41 @@ class ChatAPI:
         twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
         captions = [] if no_audio_context else self.audio_api.transcription_queue2.get()
 
-        new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
+        new_prompt = self.generate_prompt_extras(
+            stream_info_string, twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
 
-        limit: int = self.config.openai_api_max_tokens_total - self.config.openai_api_max_tokens_response - 100 # 100 is a buffer
+        limit: int = self.config.openai_api_max_tokens_total - \
+            self.config.openai_api_max_tokens_response - 100  # 100 is a buffer
 
         try:
             while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
-                if len(twitch_chat_history) == 0 and len(captions) == 0: break
-                
-                if len(twitch_chat_history) != 0:  twitch_chat_history.pop(0)
-                if len(captions) != 0: captions.pop(0)
+                if len(twitch_chat_history) == 0 and len(captions) == 0:
+                    break
 
-                new_prompt = self.generate_prompt_extras(stream_info_string, twitch_chat_history, captions)
+                if len(twitch_chat_history) != 0:
+                    twitch_chat_history.pop(0)
+                if len(captions) != 0:
+                    captions.pop(0)
+
+                new_prompt = self.generate_prompt_extras(
+                    stream_info_string, twitch_chat_history, captions)
                 self.memory.conversations[username][0]["content"] = new_prompt
         except:
-            self.log_error(self.memory.conversations[username], username, "ERROR IN UPDATE PROMPT", "")
-
+            self.log_error(
+                self.memory.conversations[username], username, "ERROR IN UPDATE PROMPT", "")
 
     def generate_prompt_extras(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
         twitch_chat_history_string = ""
         caption_string = ""
-        
+
         if len(twitch_chat_history) > 0:
             twitch_chat_history_string = f" - Recents messages in Twitch chat: {' | '.join(twitch_chat_history)}"
-        
+
         if len(captions) > 0:
             caption_string = f" - Live captions of what {self.config.twitch_channel} is currently saying: '{' '.join(captions)}'"
 
         return self.prompt + stream_info_string + caption_string + twitch_chat_history_string
-
 
     def add_message_to_conversation(self, username: str, message: str, role: str, no_twitch_chat: bool, no_audio_context: bool):
         if username not in self.memory.conversations:
@@ -189,8 +207,8 @@ class ChatAPI:
 
         self.update_prompt(username, no_twitch_chat, no_audio_context)
 
-
     # Remove unwanted charachters from the message
+
     def clean_message(self, message, username):
         message = self.remove_mentions(message, username)
         message = self.remove_hashtags(message)
@@ -205,9 +223,9 @@ class ChatAPI:
         return str(text)
 
     def remove_mentions(self, text: str, username: str):
-        text = text.replace("@User", "").replace("@user", "").replace(f"@{self.config.bot_nickname}", "").replace(f"@{username}:", "").replace(f"@{username}", "").replace(f"{self.config.bot_nickname}:", "")
+        text = text.replace("@User", "").replace("@user", "").replace(f"@{self.config.bot_nickname}", "").replace(
+            f"@{username}:", "").replace(f"@{username}", "").replace(f"{self.config.bot_nickname}:", "")
         return text
-
 
     def remove_links(self, text: str):
         links = re.findall(LINK_REGEX, text)
@@ -216,7 +234,6 @@ class ChatAPI:
             text = text.replace(link, '***')
 
         return text
-
 
     def remove_hashtags(self, text: str):
         # Define the regex pattern to match hashtags
@@ -227,22 +244,21 @@ class ChatAPI:
 
         return cleaned_text
 
-
     def clear_user_conversation(self, username: str):
         if username in self.memory.conversations:
             del self.memory.conversations[username]
 
-
     def get_total_tokens(self):
         return self.memory.total_tokens
 
-
     # Returns the number of tokens used by a list of messages.
+
     def num_tokens_from_messages(self, messages):
         encoding = tiktoken.get_encoding("cl100k_base")
         num_tokens = 0
         for message in messages:
-            num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+            # every message follows <im_start>{role/name}\n{content}<im_end>\n
+            num_tokens += 4
             for key, value in message.items():
                 num_tokens += len(encoding.encode(value))
                 if key == "name":  # if there's a name, the role is omitted

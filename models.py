@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+
 @dataclass
 class Config:
     twitch_channel: str = ""
@@ -17,6 +18,7 @@ class Config:
     prompt_extras: str = ""
     detection_words: list = field(default_factory=list)
 
+
 @dataclass
 class Memory:
     total_tokens: int = 0
@@ -25,5 +27,5 @@ class Memory:
     reaction_time: float = 0.0
     banned_words: list = field(default_factory=list)
     banned_users: list = field(default_factory=list)
-    timed_out_users: dict = field(default_factory=dict) #Dict[str, float]
-    conversations: dict = field(default_factory=dict) #Dict[str, list]
+    timed_out_users: dict = field(default_factory=dict)  # Dict[str, float]
+    conversations: dict = field(default_factory=dict)  # Dict[str, list]

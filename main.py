@@ -1,4 +1,13 @@
-import signal, threading, sys, queue, os, msvcrt, json, time, dataclasses, random
+import signal
+import threading
+import sys
+import queue
+import os
+import msvcrt
+import json
+import time
+import dataclasses
+import random
 from ChatAPI import ChatAPI, Memory
 from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
@@ -8,7 +17,7 @@ from typing import List
 TESTING: bool = True
 
 TRANSCRIPTION_MISTAKES = {
-    "libs": ["lips", "looks"], 
+    "libs": ["lips", "looks"],
     "gpt": ["gpc", "gpg", "gbc"]
 }
 
@@ -24,8 +33,8 @@ command_help: str = ""
 prompt = ""
 react_string = ""
 
-#TODO add emote support
-#TODO spotify integration
+# TODO add emote support
+# TODO spotify integration
 
 
 twitch_api: TwitchAPI
@@ -42,13 +51,14 @@ LENGTH_MESSAGE_THRESHOLD: int = 50
 
 def main():
     global twitch_api, chat_api, audio_api, config, memory
-    
+
     signal.signal(signal.SIGINT, shutdown_handler)
-    
+
     # Load data
     config = load_config()
     memory = load_memory()
-    memory.reaction_time = time.time() + 300 #set the first reaction time to 5 minutes from now
+    # set the first reaction time to 5 minutes from now
+    memory.reaction_time = time.time() + 300
 
     # Setup
     setup_strings()
@@ -61,8 +71,9 @@ def main():
     audio_api = AudioAPI(config, mentioned_verbally)
 
     # Chat API
-    chat_api = ChatAPI(config, memory, twitch_api, audio_api, prompt, testing=TESTING)
-    
+    chat_api = ChatAPI(config, memory, twitch_api,
+                       audio_api, prompt, testing=TESTING)
+
     start_threads()
     cli()
 
@@ -71,7 +82,7 @@ def setup_strings():
     global command_help, prompt, react_string
 
     command_help = f"Must be {config.twitch_channel} or a Mod. Usage: !{config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
-    
+
     prompt = f"Act like an AI twitch chatter with the username {config.bot_nickname}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
     prompt += config.prompt_extras
 
@@ -80,14 +91,16 @@ def setup_strings():
 
 def handle_commands(input: str, external: bool = True) -> None:
     global memory
-    
-    input = input.lower().replace(f"!{config.bot_nickname.lower()} ", "").replace(f"!{config.bot_nickname.lower()}", "")
-    
+
+    input = input.lower().replace(f"!{config.bot_nickname.lower()} ", "").replace(
+        f"!{config.bot_nickname.lower()}", "")
+
     # reset <username> - clears the conversation memory with the given username
     if input.startswith("reset "):
         username: str = input.split(" ")[1]
         chat_api.clear_user_conversation(username)
-        twitch_api.send_message(f"Conversation with {username} has been reset.")
+        twitch_api.send_message(
+            f"Conversation with {username} has been reset.")
 
     # ban <username> - bans the user, so that the bot will not respond to them
     elif input.startswith("ban "):
@@ -110,8 +123,9 @@ def handle_commands(input: str, external: bool = True) -> None:
         out_time: float = time.time() + int(duration)
         memory.timed_out_users[username] = out_time
         chat_api.clear_user_conversation(username)
-        twitch_api.send_message(f"{username} will be ignored for {duration} seconds.")
-    
+        twitch_api.send_message(
+            f"{username} will be ignored for {duration} seconds.")
+
     # cooldown <duration in minutes> - puts the bot in cooldown for the given duration
     elif input.startswith("cooldown "):
         out_time: float = float(input.split(" ")[1])
@@ -131,7 +145,8 @@ def handle_commands(input: str, external: bool = True) -> None:
 
     elif input.startswith("unbanword "):
         word = input.split(" ", 1)[1]
-        if word in memory.banned_words: memory.banned_words.remove(word)
+        if word in memory.banned_words:
+            memory.banned_words.remove(word)
         twitch_api.send_message(f"'{word}' removed from banned words.")
 
     # op <message> - sends a message as the operator
@@ -139,7 +154,7 @@ def handle_commands(input: str, external: bool = True) -> None:
         message: str = input.split(" ", 1)[1]
         twitch_api.send_message(f"(operator): {message}")
 
-    # set-imt <number> - sets the ignored message threshold    
+    # set-imt <number> - sets the ignored message threshold
     elif input.startswith("set-emt ") and not external:
         global IGNORED_MESSAGE_THRESHOLD
         IGNORED_MESSAGE_THRESHOLD = int(input.split(" ")[1])
@@ -153,16 +168,18 @@ def handle_commands(input: str, external: bool = True) -> None:
     elif input.startswith("test-msg ") and not external:
         username = "testuser"
         message = input.split(" ", 1)[1]
-        if TESTING: send_response(username, message)
+        if TESTING:
+            send_response(username, message)
 
     # add-det-word <word> - adds a word to the detection words
     elif input.startswith("add-det-word ") and not external:
         word = input.split(" ", 1)[1]
         config.detection_words.append(word)
-    
+
     elif input == ("intro") and not external:
-        if not TESTING: send_intro()
-    
+        if not TESTING:
+            send_intro()
+
     elif input == ("exit") and not external:
         shutdown_handler(None, None)
 
@@ -176,7 +193,8 @@ def start_threads():
     global listening_thread, processing_thread, audio_context_thread
 
     print("Starting threads...")
-    listening_thread = threading.Thread(target=twitch_api.listen_to_messages, args=(message_queue, stop_event))
+    listening_thread = threading.Thread(
+        target=twitch_api.listen_to_messages, args=(message_queue, stop_event))
     listening_thread.daemon = True
     listening_thread.start()
 
@@ -184,7 +202,8 @@ def start_threads():
     processing_thread.daemon = True
     processing_thread.start()
 
-    audio_context_thread = threading.Thread(target=audio_api.listen_to_audio, args=(stop_event,))
+    audio_context_thread = threading.Thread(
+        target=audio_api.listen_to_audio, args=(stop_event,))
     audio_context_thread.daemon = True
     audio_context_thread.start()
 
@@ -193,30 +212,34 @@ def process_messages():
     global message_count
     while not stop_event.is_set():
         # get the next message from the queue (this will block until a message is available or 2.5 seconds have passed)
-        try: entry = message_queue.get(timeout=2.5)
-        except queue.Empty: continue
-        
+        try:
+            entry = message_queue.get(timeout=2.5)
+        except queue.Empty:
+            continue
+
         username = entry.get('username')
         message = entry.get('message')
-            
+
         if message.lower().startswith(f"!{config.bot_nickname.lower()}"):
             if username in twitch_api.moderators:
                 if message.lower() == f"!{config.bot_nickname.lower()}":
                     twitch_api.send_message(command_help)
                 else:
                     handle_commands(message)
-        
+
         elif mentioned(username, message) and moderation(username):
             send_response(username, message)
-            if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
+            if memory.slow_mode_seconds > 0:
+                time.sleep(memory.slow_mode_seconds)
 
         elif react() and moderation(""):
             send_response(config.twitch_channel, react_string, react=True)
-            memory.reaction_time = time.time() + random.randint(900, 1200) # 15-20 minutes
+            memory.reaction_time = time.time() + random.randint(900, 1200)  # 15-20 minutes
 
         elif engage(message) and moderation(username):
             send_response(username, f"@{config.twitch_channel} {message}")
-            if memory.slow_mode_seconds > 0: time.sleep(memory.slow_mode_seconds)
+            if memory.slow_mode_seconds > 0:
+                time.sleep(memory.slow_mode_seconds)
 
         else:
             message_count += 1
@@ -229,21 +252,25 @@ def cli():
     captions = ""
 
     os.system('cls')
-    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Captions: {captions}")
+    print(
+        f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Captions: {captions}")
 
     while not stop_event.is_set():
-        try: captions = " ".join(audio_api.transcription_queue1.get(timeout=1))
-        except: captions = old_captions
-        
+        try:
+            captions = " ".join(audio_api.transcription_queue1.get(timeout=1))
+        except:
+            captions = old_captions
+
         # Check if there is input available on stdin
         if msvcrt.kbhit():
             user_input = input("Enter something: ")
             handle_commands(user_input, external=False)
-        
+
         elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens() or old_captions != captions:
             os.system('cls')
-            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Captions: {captions}")
-            
+            print(
+                f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Captions: {captions}")
+
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
             old_captions = captions
@@ -252,11 +279,16 @@ def cli():
 
 
 def moderation(username: str) -> bool:
-    if TESTING: return False
-    if username in memory.banned_users: return False
-    if time.time() < memory.cooldown_time: return False
-    if username in memory.timed_out_users and time.time() < memory.timed_out_users[username]: return False
-    if username in memory.timed_out_users: del memory.timed_out_users[username] # remove if time is up
+    if TESTING:
+        return False
+    if username in memory.banned_users:
+        return False
+    if time.time() < memory.cooldown_time:
+        return False
+    if username in memory.timed_out_users and time.time() < memory.timed_out_users[username]:
+        return False
+    if username in memory.timed_out_users:
+        del memory.timed_out_users[username]  # remove if time is up
     return True
 
 
@@ -277,16 +309,21 @@ def send_response(username: str, message: str, react: bool = False, respond: boo
     bot_response = None
 
     if react:
-        ai_response = chat_api.get_response_AI(username, message, no_twitch_chat=True)
-        if ai_response: bot_response = f"{ai_response}"
+        ai_response = chat_api.get_response_AI(
+            username, message, no_twitch_chat=True)
+        if ai_response:
+            bot_response = f"{ai_response}"
 
     elif respond:
-        ai_response = chat_api.get_response_AI(username, message, no_audio_context=True)
-        if ai_response: bot_response = f"@{username} {ai_response}"
-    
+        ai_response = chat_api.get_response_AI(
+            username, message, no_audio_context=True)
+        if ai_response:
+            bot_response = f"@{username} {ai_response}"
+
     else:
         ai_response = chat_api.get_response_AI(username, message)
-        if ai_response: bot_response = f"@{username} {ai_response}"
+        if ai_response:
+            bot_response = f"@{username} {ai_response}"
 
     if bot_response:
         twitch_api.send_message(bot_response)
@@ -305,26 +342,29 @@ def mentioned_verbally(audio_transcription: List[str]):
 
         transctiption_index = audio_transcription.index(line)
         audio_transcription[transctiption_index] = fixed_line
-       
-        if not responded and not respond: 
+
+        if not responded and not respond:
             respond = True
             audio_api.detected_lines[detection_index]['responded'] = True
 
     if respond and transctiption_index:
-        captions = " ".join(audio_transcription[transctiption_index - 2 : transctiption_index + 4])
+        captions = " ".join(
+            audio_transcription[transctiption_index - 2: transctiption_index + 4])
         message = f"{config.twitch_channel} talked to/about you ({config.bot_nickname}) in the following captions: '{captions}' only respond to what they said to/about you ({config.bot_nickname})"
         send_response(config.twitch_channel, message, respond=True)
 
-    
+
 # Adds all possible transcription mistakes to the detection words
 def add_mistakes_to_detection_words():
     for correct, wrong_list in TRANSCRIPTION_MISTAKES.items():
         word_list = filter(lambda x: correct in x, config.detection_words)
         for word in word_list:
             index = config.detection_words.index(word)
-            wrong_words = list(map(lambda wrong: word.replace(correct, wrong), wrong_list))
-            wrong_words = list(filter(lambda word: word not in config.detection_words, wrong_words))
-            config.detection_words[index + 1 : index + 1] = wrong_words       
+            wrong_words = list(
+                map(lambda wrong: word.replace(correct, wrong), wrong_list))
+            wrong_words = list(
+                filter(lambda word: word not in config.detection_words, wrong_words))
+            config.detection_words[index + 1: index + 1] = wrong_words
 
 
 def load_config() -> Config:
@@ -335,10 +375,11 @@ def load_config() -> Config:
             return loaded_config
 
     except FileNotFoundError:
-        print("Config file not found. Creating new config file...")    
+        print("Config file not found. Creating new config file...")
 
-        with open ("config.json", "w") as outfile: json.dump(dataclasses.asdict(Config()), outfile, indent=4)
-        
+        with open("config.json", "w") as outfile:
+            json.dump(dataclasses.asdict(Config()), outfile, indent=4)
+
         print("Please fill out the config file and restart the bot.")
         sys.exit(0)
 
@@ -356,7 +397,8 @@ def load_memory() -> Memory:
             return loaded_memory
 
     except FileNotFoundError:
-        with open ("memory.json", "w") as outfile: json.dump(dataclasses.asdict(Memory()), outfile, indent=4)
+        with open("memory.json", "w") as outfile:
+            json.dump(dataclasses.asdict(Memory()), outfile, indent=4)
         with open("memory.json", "r") as infile:
             json_data = json.load(infile)
             loaded_memory = Memory(**json_data)
@@ -373,15 +415,18 @@ def shutdown_handler(signal, frame):
 
     print('Shutting down...')
 
-    if processing_thread: processing_thread.join()
+    if processing_thread:
+        processing_thread.join()
     print('Processing thread stopped')
 
-    if audio_context_thread: audio_context_thread.join()
+    if audio_context_thread:
+        audio_context_thread.join()
     print('Audio context thread stopped')
 
-    if listening_thread: listening_thread.join()
+    if listening_thread:
+        listening_thread.join()
     print('Listening thread stopped')
-    
+
     twitch_api.close_socket()
 
     print('Saving config...')
@@ -391,7 +436,6 @@ def shutdown_handler(signal, frame):
     save_memory()
 
     sys.exit(0)
-
 
 
 if __name__ == '__main__':

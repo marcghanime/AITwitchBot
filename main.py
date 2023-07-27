@@ -225,28 +225,28 @@ def process_messages():
 def cli():
     old_message_count = message_count
     old_token_count = chat_api.get_total_tokens()
-    old_last_captions = ""
-    last_captions = ""
+    old_captions = ""
+    captions = ""
 
     os.system('cls')
-    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Last Captions: {last_captions}")
+    print(f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Captions: {captions}")
 
     while not stop_event.is_set():
-        try: last_captions = audio_api.transcription_queue1.get(timeout=1)[-1]
-        except: last_captions = old_last_captions
+        try: captions = " ".join(audio_api.transcription_queue1.get(timeout=1))
+        except: captions = old_captions
         
         # Check if there is input available on stdin
         if msvcrt.kbhit():
             user_input = input("Enter something: ")
             handle_commands(user_input, external=False)
         
-        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens() or old_last_captions != last_captions:
+        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens() or old_captions != captions:
             os.system('cls')
-            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Last Captions: {last_captions}")
+            print(f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Captions: {captions}")
             
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
-            old_last_captions = last_captions
+            old_captions = captions
 
         time.sleep(1)
 

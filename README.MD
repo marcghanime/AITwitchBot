@@ -9,12 +9,12 @@ I only tested this on windows so I don't know if it works on other operating sys
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
 2. For the First time run `python setup.py`. It will create a config file and download the whisper model.
-3. Fill out the config file. See [Config File](#Config-File) for detailed info.
+3. Fill out the config file. See [Config File](#config-file) for detailed info.
 
 ## Running
 1. Set the `TESTING` variable in `main.py` to `False`
 2. Run `python main.py`
-- To input a [command](#Commands) just start typing in the console and press enter.
+- To input a [command](#commands) just start typing in the console and press enter.
 
 ## TODO
 - [ ] Add 7tv emote support

@@ -14,7 +14,7 @@ from AudioAPI import AudioAPI
 from models import Config, Memory
 from typing import List
 
-TESTING: bool = True
+TESTING: bool = False
 
 TRANSCRIPTION_MISTAKES = {
     "libs": ["lips", "looks"],
@@ -234,7 +234,7 @@ def process_messages():
 
         elif react() and moderation(""):
             send_response(config.twitch_channel, react_string, react=True)
-            memory.reaction_time = time.time() + random.randint(900, 1200)  # 15-20 minutes
+            memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
 
         elif engage(message) and moderation(username):
             send_response(username, f"@{config.twitch_channel} {message}")
@@ -253,13 +253,15 @@ def cli():
 
     os.system('cls')
     print(
-        f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Captions: {captions}")
+        f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Captions: \n {captions}")
 
     while not stop_event.is_set():
         try:
             captions = " ".join(audio_api.transcription_queue1.get(timeout=1))
         except:
             captions = old_captions
+
+        time_to_reaction = memory.reaction_time - time.time()
 
         # Check if there is input available on stdin
         if msvcrt.kbhit():
@@ -269,7 +271,7 @@ def cli():
         elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens() or old_captions != captions:
             os.system('cls')
             print(
-                f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} \n Captions: {captions}")
+                f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
 
             old_message_count = message_count
             old_token_count = chat_api.get_total_tokens()
@@ -313,12 +315,14 @@ def send_response(username: str, message: str, react: bool = False, respond: boo
             username, message, no_twitch_chat=True)
         if ai_response:
             bot_response = f"{ai_response}"
+            chat_api.clear_user_conversation(username)
 
     elif respond:
         ai_response = chat_api.get_response_AI(
             username, message, no_audio_context=True)
         if ai_response:
             bot_response = f"@{username} {ai_response}"
+            chat_api.clear_user_conversation(username)
 
     else:
         ai_response = chat_api.get_response_AI(username, message)

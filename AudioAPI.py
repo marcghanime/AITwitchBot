@@ -100,6 +100,7 @@ class AudioAPI:
             try:
                 data = self.data_queue.get(timeout=5)
             except Empty:
+                self.put_transcription()
                 continue
 
             # keep the last second of the last recording
@@ -132,15 +133,7 @@ class AudioAPI:
             if self.detect_verbal_mention():
                 self.verbal_mention_callback(self.transcription.copy())
 
-            # put the data in the queues for the other APIs to access
-            with self.transcription_queue1.mutex:
-                self.transcription_queue1.queue.clear()
-            self.transcription_queue1.put(self.transcription.copy())
-
-            with self.transcription_queue2.mutex:
-                self.transcription_queue2.queue.clear()
-            self.transcription_queue2.put(self.transcription.copy())
-
+            self.put_transcription()
         # Join the recording thread after the while loop is stopped.
         recording_thread.join()
 
@@ -194,6 +187,18 @@ class AudioAPI:
             first_string = first_string[:-1]
 
         return first_string
+    
+
+    def put_transcription(self):
+        # put the data in the queues for the other APIs to access
+        with self.transcription_queue1.mutex:
+            self.transcription_queue1.queue.clear()
+        self.transcription_queue1.put(self.transcription.copy())
+
+        with self.transcription_queue2.mutex:
+            self.transcription_queue2.queue.clear()
+        self.transcription_queue2.put(self.transcription.copy())
+
 
     def detect_verbal_mention(self):
         detected = False

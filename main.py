@@ -17,8 +17,8 @@ from typing import List
 TESTING: bool = False
 
 TRANSCRIPTION_MISTAKES = {
-    "libs": ["lips", "looks"],
-    "gpt": ["gpc", "gpg", "gbc"]
+    "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
+    "gpt": ["gpc", "gpg", "gbc", "gbt", "shupiti"]
 }
 
 # Thread variables
@@ -83,7 +83,7 @@ def setup_strings():
 
     command_help = f"Must be {config.twitch_channel} or a Mod. Usage: !{config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
 
-    prompt = f"Act like an AI twitch chatter with the username {config.bot_nickname}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
+    prompt = f"You are an AI twitch chatter. Keep your messages short, under 20 words and don't put usernames in the message. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
     prompt += config.prompt_extras
 
     react_string = f"repond or react to the last thing {config.twitch_channel} said based only on the provided live captions"
@@ -247,13 +247,12 @@ def process_messages():
 
 def cli():
     old_message_count = message_count
-    old_token_count = chat_api.get_total_tokens()
     old_captions = ""
     captions = ""
 
     os.system('cls')
     print(
-        f"Message-Counter: {message_count} | Total-Tokens: {chat_api.get_total_tokens()}\n Captions: \n {captions}")
+        f"Message-Counter: {message_count}\n Captions: \n {captions}")
 
     while not stop_event.is_set():
         try:
@@ -268,13 +267,12 @@ def cli():
             user_input = input("Enter something: ")
             handle_commands(user_input, external=False)
 
-        elif old_message_count != message_count or old_token_count != chat_api.get_total_tokens() or old_captions != captions:
+        elif old_message_count != message_count or old_captions != captions:
             os.system('cls')
             print(
-                f"Counter: {message_count} | Total-Token: {chat_api.get_total_tokens()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
+                f"Counter: {message_count} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
 
             old_message_count = message_count
-            old_token_count = chat_api.get_total_tokens()
             old_captions = captions
 
         time.sleep(1)
@@ -343,8 +341,11 @@ def mentioned_verbally(audio_transcription: List[str]):
         line: str = entry['line']
         fixed_line: str = entry['fixed_line']
         responded: bool = entry['responded']
-
-        transctiption_index = audio_transcription.index(line)
+        
+        try:
+            transctiption_index = audio_transcription.index(line)
+        except ValueError:
+            continue
         audio_transcription[transctiption_index] = fixed_line
 
         if not responded and not respond:

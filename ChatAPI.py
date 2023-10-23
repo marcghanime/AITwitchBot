@@ -11,7 +11,7 @@ from AudioAPI import AudioAPI
 from models import Memory, Config
 
 
-LINK_REGEX = r"\b[\w.-]+\.[\w.-]+\b"
+LINK_REGEX = r"\b[a-zA-Z]+\.[a-zA-Z]+\b"
 API_URL = "https://api.openai.com/v1/chat/completions"
 
 
@@ -60,15 +60,6 @@ class ChatAPI:
         # Successful response
         if response.status_code == 200:
             result = response.json()
-
-            # Get tokens used
-            tokens_used = 0
-            try:
-                tokens_used = result['usage']['total_tokens']
-            except:
-                pass
-
-            self.memory.total_tokens += tokens_used
 
             # Get finish reason
             try:
@@ -248,11 +239,7 @@ class ChatAPI:
         if username in self.memory.conversations:
             del self.memory.conversations[username]
 
-    def get_total_tokens(self):
-        return self.memory.total_tokens
-
     # Returns the number of tokens used by a list of messages.
-
     def num_tokens_from_messages(self, messages):
         encoding = tiktoken.get_encoding("cl100k_base")
         num_tokens = 0

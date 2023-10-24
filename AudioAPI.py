@@ -123,8 +123,8 @@ class AudioAPI:
             self.transcription.append(text.strip())
 
             # keep only the last 20 sentences
-            if len(self.transcription) > 30:
-                self.transcription = self.transcription[-30:]
+            if len(self.transcription) > 20:
+                self.transcription = self.transcription[-20:]
 
             # check if the bot was mentioned verbally
             if self.detect_verbal_mention():

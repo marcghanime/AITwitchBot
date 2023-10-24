@@ -21,7 +21,6 @@ class Config:
 
 @dataclass
 class Memory:
-    total_tokens: int = 0
     cooldown_time: float = 0.0
     slow_mode_seconds: int = 0
     reaction_time: float = 0.0

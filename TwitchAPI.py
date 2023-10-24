@@ -124,17 +124,18 @@ class TwitchAPI:
 
         try:
             response = requests.get(
-                url, params=params, headers=headers, timeout=10)
-        except requests.exceptions.Timeout:
+                url, params=params, headers=headers, timeout=5)
+            
+            data = response.json()['data'][0]
+            game_name = data['game_name']
+            viewer_count = data['viewer_count']
+        except:
             return {
                 'game_name': '',
                 'viewer_count': '',
                 'time_live': ''
             }
 
-        data = response.json()['data'][0]
-        game_name = data['game_name']
-        viewer_count = data['viewer_count']
 
         # Get live time
         started_at = data['started_at']

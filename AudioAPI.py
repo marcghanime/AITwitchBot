@@ -51,37 +51,34 @@ class AudioAPI:
         print("Audio API Initialized.")
 
     # Thread that records output audio from the default speaker.
-
     def recording_thread(self, stop_event: threading.Event):
         speaker_id = str(sc.default_speaker().name)
         speaker_output = sc.get_microphone(speaker_id, include_loopback=True)
+        data = []
 
+        # Keep recording until we have enough valid data.
         while not stop_event.is_set():
-            data = []
+            data = speaker_output.record(
+                samplerate=SAMPLE_RATE, numframes=SAMPLE_RATE*RECORD_TIMOUT)
 
-            # Keep recording until we have enough valid data.
-            while not stop_event.is_set():
-                data = speaker_output.record(
-                    samplerate=SAMPLE_RATE, numframes=SAMPLE_RATE*RECORD_TIMOUT)
+            # remove zeros arrays from the new data
+            data = data[np.abs(data).max(axis=1) > 0]
 
-                # remove zeros arrays from the new data
-                data = data[np.abs(data).max(axis=1) > 0]
+            # If we have enough data, break out of the loop.
+            if len(data) >= SAMPLE_RATE*RECORD_TIMOUT:
+                # Push the data into the thread safe queue.
+                self.data_queue.put(data)
+                data = []
 
-                # If we have enough data, break out of the loop.
-                if len(data) >= SAMPLE_RATE*RECORD_TIMOUT:
-                    break
+            # Check if defaut speaker has changed
+            if speaker_id != str(sc.default_speaker().name):
+                speaker_id = str(sc.default_speaker().name)
+                speaker_output = sc.get_microphone(
+                    speaker_id, include_loopback=True)
 
-                # Check if defaut speaker has changed
-                if speaker_id != str(sc.default_speaker().name):
-                    speaker_id = str(sc.default_speaker().name)
-                    speaker_output = sc.get_microphone(
-                        speaker_id, include_loopback=True)
+            # Sleep for a bit to prevent the thread from hogging the CPU.
+            time.sleep(0.1)
 
-                # Sleep for a bit to prevent the thread from hogging the CPU.
-                time.sleep(0.1)
-
-            # Push the data into the thread safe queue.
-            self.data_queue.put(data)
 
     def listen_to_audio(self, stop_event: threading.Event):
         # Start the recording thread.
@@ -126,8 +123,8 @@ class AudioAPI:
             self.transcription.append(text.strip())
 
             # keep only the last 20 sentences
-            if len(self.transcription) > 30:
-                self.transcription = self.transcription[-30:]
+            if len(self.transcription) > 20:
+                self.transcription = self.transcription[-20:]
 
             # check if the bot was mentioned verbally
             if self.detect_verbal_mention():

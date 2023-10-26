@@ -76,9 +76,7 @@ class ChatAPI:
         try:
             with open("logs.json", "r", encoding='utf-8') as f:
                 logs = json.load(f)
-        except json.decoder.JSONDecodeError:
-            logs = []
-        except FileNotFoundError:
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
             logs = []
 
         # Append the new log to the existing JSON array

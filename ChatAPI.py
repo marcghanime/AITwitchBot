@@ -76,9 +76,7 @@ class ChatAPI:
         try:
             with open("logs.json", "r", encoding='utf-8') as f:
                 logs = json.load(f)
-        except json.decoder.JSONDecodeError:
-            logs = []
-        except FileNotFoundError:
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
             logs = []
 
         # Append the new log to the existing JSON array
@@ -98,22 +96,10 @@ class ChatAPI:
         ]
 
     def update_prompt(self, username: str, no_twitch_chat: bool, no_audio_context: bool):
-        stream_info = None
-        stream_info_string = ""
-
-        if not self.TESTING:
-            stream_info = self.twitch_api.get_stream_info()
-        if stream_info:
-            game_name = stream_info.get("game_name")
-            viewer_count = stream_info.get("viewer_count")
-            time_live = stream_info.get("time_live")
-            stream_info_string = f"- Stream info: Game: {game_name}, Viewer Count: {viewer_count}, Time Live: {time_live}"
-
         twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
         captions = [] if no_audio_context else self.audio_api.transcription_queue2.get()
 
-        new_prompt = self.generate_prompt_extras(
-            stream_info_string, twitch_chat_history, captions)
+        new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
 
         limit: int = self.config.openai_api_max_tokens_total - \
@@ -129,14 +115,13 @@ class ChatAPI:
                 if len(captions) != 0:
                     captions.pop(0)
 
-                new_prompt = self.generate_prompt_extras(
-                    stream_info_string, twitch_chat_history, captions)
+                new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
                 self.memory.conversations[username][0]["content"] = new_prompt
         except Exception as error:
             error_msg = f"{type(error).__name__}: {str(error)}"
             self.log_error(error_msg, username)
 
-    def generate_prompt_extras(self, stream_info_string: str, twitch_chat_history: List[str], captions: List[str]):
+    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: List[str]):
         twitch_chat_history_string = ""
         caption_string = ""
 
@@ -146,7 +131,7 @@ class ChatAPI:
         if len(captions) > 0:
             caption_string = f" - Live captions of what {self.config.twitch_channel} is currently saying: '{' '.join(captions)}'"
 
-        return self.prompt + stream_info_string + caption_string + twitch_chat_history_string
+        return self.prompt + caption_string + twitch_chat_history_string
 
     def add_message_to_conversation(
             self,

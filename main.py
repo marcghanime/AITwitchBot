@@ -12,6 +12,7 @@ from ChatAPI import ChatAPI
 from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
 from models import Config, Memory
+from twitchAPI.chat import ChatMessage
 from typing import List
 
 TESTING: bool = False
@@ -22,7 +23,6 @@ TRANSCRIPTION_MISTAKES = {
 }
 
 # Thread variables
-listening_thread = None
 processing_thread = None
 audio_context_thread = None
 stop_event = threading.Event()
@@ -44,7 +44,7 @@ config: Config
 memory: Memory
 
 # create a queue to hold the messages
-message_queue = queue.Queue()
+message_queue: queue.Queue[ChatMessage] = queue.Queue()
 IGNORED_MESSAGE_THRESHOLD: int = 50
 LENGTH_MESSAGE_THRESHOLD: int = 50
 
@@ -65,7 +65,7 @@ def main():
     add_mistakes_to_detection_words()
 
     # Twitch API
-    twitch_api = TwitchAPI(config, testing=TESTING)
+    twitch_api = TwitchAPI(config, message_queue, testing=TESTING)
 
     # Audio API
     audio_api = AudioAPI(config, mentioned_verbally)
@@ -190,14 +190,9 @@ def send_intro():
 
 
 def start_threads():
-    global listening_thread, processing_thread, audio_context_thread
+    global processing_thread, audio_context_thread
 
     print("Starting threads...")
-    listening_thread = threading.Thread(
-        target=twitch_api.listen_to_messages, args=(message_queue, stop_event))
-    listening_thread.daemon = True
-    listening_thread.start()
-
     processing_thread = threading.Thread(target=process_messages)
     processing_thread.daemon = True
     processing_thread.start()
@@ -217,11 +212,11 @@ def process_messages():
         except queue.Empty:
             continue
 
-        username = entry.get('username')
-        message = entry.get('message')
+        username = entry.user.name
+        message = entry.text
 
         if message.lower().startswith(f"!{config.bot_nickname.lower()}"):
-            if username in twitch_api.moderators:
+            if entry.user.mod or entry.user.name == config.twitch_channel.lower():
                 if message.lower() == f"!{config.bot_nickname.lower()}":
                     twitch_api.send_message(command_help)
                 else:
@@ -428,11 +423,8 @@ def shutdown_handler(signal, frame):
         audio_context_thread.join()
     print('Audio context thread stopped')
 
-    if listening_thread:
-        listening_thread.join()
-    print('Listening thread stopped')
-
-    twitch_api.close_socket()
+    twitch_api.shutdown()
+    print('Twitch API stopped')
 
     print('Saving config...')
     save_config()

@@ -1,15 +1,10 @@
-import socket
 import queue
-import re
-import datetime
-import threading
 import asyncio
 
-import requests
-from emoji import demojize
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
-from twitchAPI.types import AuthScope
+from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException, ChatEvent
+from twitchAPI.chat import Chat, ChatMessage
 
 from models import Config
 
@@ -17,171 +12,130 @@ from models import Config
 class TwitchAPI:
     config: Config
     twitch: Twitch
+    chat: Chat
+    message_queue: queue.Queue[ChatMessage]
     chat_history = []
-    moderators = []
-    TESTING: bool = False
-    sock = socket.socket()
 
-    def __init__(self, config: Config, testing: bool):
+    TESTING: bool = False
+
+    def __init__(self, config: Config, message_queue: queue.Queue[ChatMessage], testing: bool):
         self.config = config
+        self.message_queue = message_queue
         self.TESTING = testing
-        self.sock.settimeout(5)
 
         print("Initializing Twitch API...")
-        asyncio.run(self.init_twitch())
-
-        if config.twitch_api_oauth_token == "":
-            self.get_twitch_oath_token()
-        self.initialize_socket()
+        asyncio.run(self.authenticate())
+        asyncio.run(self.init_chat())
         print("Twitch API Initialized")
 
-    def initialize_socket(self):
-        self.sock.connect((self.config.twitch_chat_server,
-                          self.config.twitch_chat_port))
-        self.sock.send("CAP REQ :twitch.tv/tags\n".encode('utf-8'))
-        self.sock.send(
-            f"PASS oauth:{self.config.twitch_user_token}\n".encode('utf-8'))
-        self.sock.send(f"NICK {self.config.bot_nickname}\n".encode('utf-8'))
-        self.sock.send(f"JOIN #{self.config.twitch_channel}\n".encode('utf-8'))
 
-    def close_socket(self):
-        self.sock.close()
-
-    def listen_to_messages(self, message_queue: queue.Queue, stop_event: threading.Event):
-        while not stop_event.is_set():
-            try:
-                resp = self.sock.recv(2048).decode('utf-8')
-            except socket.timeout:
-                continue
-
-            if ":tmi.twitch.tv NOTICE * :Login authentication failed" in resp:
-                print("Login authentication failed, refreshing user token...")
-                asyncio.run(self.init_twitch(force_refresh=True))
-
-            elif resp.startswith('PING'):
-                self.sock.send("PONG\n".encode('utf-8'))
-
-            elif resp.startswith(':tmi.twitch.tv') or resp.startswith(f':{self.config.bot_nickname.lower()}'):
-                pass
-
-            elif len(resp) > 0:
-                messages = resp.split("\n")
-                for message in messages:
-                    if not len(message) > 0:
-                        continue
-
-                    parsed_message = self.parse_message(message)
-                    if not parsed_message:
-                        continue
-
-                    self.chat_history.append(
-                        f"{parsed_message['username']}: {parsed_message['message']}")
-                    if len(self.chat_history) > 20:
-                        self.chat_history.pop(0)
-                    message_queue.put(parsed_message)
-
-    def parse_message(self, string: str):
-        if "PRIVMSG" not in string:
-            return None
-
-        splitted = string.split()
-
-        moderator = "badges=moderator/1" in splitted[0] or "badges=broadcaster/1" in splitted[0]
-
-        string = " ".join(splitted[1:])
-        regex = r'^:(?P<user>[a-zA-Z0-9_]{4,25})!\1@\1\.tmi\.twitch\.tv PRIVMSG #(?P<channel>[a-zA-Z0-9_]{4,25}) :(?P<message>.+)$'
-        string = demojize(string)
-        match = re.match(regex, string)
-        user = ""
-        message = ""
-
-        if match:
-            user = match.group('user')
-            message = match.group('message').replace("\r", "")
-
-        if moderator and user not in self.moderators:
-            self.moderators.append(user)
-
-        return {
-            'username': user,
-            'message': message
-        }
-
-    def send_message(self, message: str):
-        if len(message) > 500:
-            message = message[:475] + "..."
-        if not self.TESTING:
-            self.sock.send(
-                f"PRIVMSG #{self.config.twitch_channel} :{message}\n".encode('utf-8'))
-
-    def get_stream_info(self):
-        url = 'https://api.twitch.tv/helix/streams'
-        params = {'user_login': [self.config.twitch_channel]}
-        headers = {
-            'Authorization': f'Bearer {self.config.twitch_api_oauth_token}',
-            'Client-Id': self.config.twitch_api_client_id
-        }
-
-        try:
-            response = requests.get(
-                url, params=params, headers=headers, timeout=5)
-            
-            data = response.json()['data'][0]
-            game_name = data['game_name']
-            viewer_count = data['viewer_count']
-        except:
-            return {
-                'game_name': '',
-                'viewer_count': '',
-                'time_live': ''
-            }
+    # API Shutdown
+    def shutdown(self):
+        asyncio.run(self.chat.leave_room(self.config.twitch_channel))
+        self.chat.stop()
+        asyncio.run(self.twitch.close())
 
 
-        # Get live time
-        started_at = data['started_at']
-        total_seconds = (datetime.datetime.utcnow(
-        ) - datetime.datetime.strptime(started_at, '%Y-%m-%dT%H:%M:%SZ')).total_seconds()
-        time_live = str(datetime.timedelta(
-            seconds=total_seconds)).split('.')[0]
+    # Initialize the chat bot
+    async def init_chat(self):
+        # Create chat instance
+        self.chat = await Chat(self.twitch)
 
-        return {
-            'game_name': game_name,
-            'viewer_count': viewer_count,
-            'time_live': time_live
-        }
+        # Listen to chat messages
+        self.chat.register_event(ChatEvent.MESSAGE, self.on_message)
 
-    def get_twitch_oath_token(self):
-        url = 'https://id.twitch.tv/oauth2/token'
-        params = {'client_id': self.config.twitch_api_client_id,
-                  'client_secret': self.config.twitch_api_client_secret, 'grant_type': 'client_credentials'}
+        # We are done with our setup, lets start this bot up!
+        self.chat.start()
 
-        try:
-            response = requests.post(url, params=params, timeout=20)
-        except requests.exceptions.Timeout:
+        # Join channel
+        await self.chat.join_room(self.config.twitch_channel)
+
+
+    # This will be called whenever a message in a channel was send by either the bot OR another user
+    async def on_message(self, msg: ChatMessage):
+        # Check if user is the bot itself
+        if msg.user.name == self.config.bot_nickname.lower():
             return
 
-        self.config.twitch_api_oauth_token = response.json()["access_token"]
+        # Add message to chat history
+        self.chat_history.append(f"{msg.user.name}: {msg.text}")
 
-    async def init_twitch(self, force_refresh: bool = False):
+        # Keep chat history at 20 messages
+        if len(self.chat_history) > 20:
+            self.chat_history.pop(0)
+
+        # Add message to message queue
+        self.message_queue.put(msg)
+
+
+    # Send message to chat
+    def send_message(self, message: str):
+        # Limit message length
+        if len(message) > 500:
+            message = message[:475] + "..."
+
+        # Send message
+        if not self.TESTING:
+            asyncio.run(self.chat.send_message(self.config.twitch_channel, message))
+
+
+    # Get stream information
+    async def get_stream_info(self):
+        target_channel = None
+        target_stream = None
+
+        # Get channel
+        channels = self.twitch.get_users(logins=[self.config.twitch_channel])
+        async for channel in channels:
+            target_channel = channel
+            break
+
+        # Check if channel was found
+        if not target_channel:
+            return
+
+        # Get stream
+        streams = self.twitch.get_streams(user_id=target_channel.id)
+        async for stream in streams:
+            target_stream = stream
+            break
+
+        return target_stream
+
+
+    # Authenticate Twitch API
+    async def authenticate(self):
+        # Initialize Twitch API
         self.twitch = Twitch(self.config.twitch_api_client_id,
                              self.config.twitch_api_client_secret)
+
+        # Get tokens from config
         twitch_user_token: str = self.config.twitch_user_token
         refresh_token: str = self.config.twitch_user_refresh_token
+
+        # Set scope
         scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
 
-        if self.config.twitch_user_token == "" or self.config.twitch_user_refresh_token == "" or force_refresh:
-            auth = UserAuthenticator(self.twitch, scope, force_verify=False)
+        # Check if refresh is needed
+        try:
+            # Refresh access token
+            twitch_user_token, refresh_token = await refresh_access_token(
+                    refresh_token, self.config.twitch_api_client_id, self.config.twitch_api_client_secret)
+        except (UnauthorizedException, InvalidRefreshTokenException):
+            # Start authentication flow
+            auth = UserAuthenticator(self.twitch, scope, force_verify=True)
             auth_result = await auth.authenticate()
             if auth_result:
                 twitch_user_token, refresh_token = auth_result
 
-        else:
-            twitch_user_token, refresh_token = await refresh_access_token(
-                refresh_token, self.config.twitch_api_client_id, self.config.twitch_api_client_secret)
-
+        # Set user authentication
         await self.twitch.set_user_authentication(twitch_user_token, scope, refresh_token)
+
+        # Set tokens in config
         self.config.twitch_user_token = twitch_user_token
         self.config.twitch_user_refresh_token = refresh_token
 
+
+    # Return chat history
     def get_chat_history(self):
         return self.chat_history.copy()

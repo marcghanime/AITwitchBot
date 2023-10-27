@@ -18,10 +18,11 @@ class TwitchAPI:
 
     TESTING: bool = False
 
-    def __init__(self, config: Config, message_queue: queue.Queue[ChatMessage], testing: bool):
+    def __init__(self, config: Config, testing: bool):
         self.config = config
-        self.message_queue = message_queue
         self.TESTING = testing
+
+        self.message_queue = queue.Queue()
 
         print("Initializing Twitch API...")
         asyncio.run(self.authenticate())
@@ -34,6 +35,7 @@ class TwitchAPI:
         asyncio.run(self.chat.leave_room(self.config.twitch_channel))
         self.chat.stop()
         asyncio.run(self.twitch.close())
+        print("Twitch API Shutdown")
 
 
     # Initialize the chat bot
@@ -139,3 +141,7 @@ class TwitchAPI:
     # Return chat history
     def get_chat_history(self):
         return self.chat_history.copy()
+    
+    # Return the message queue
+    def get_message_queue(self):
+        return self.message_queue

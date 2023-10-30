@@ -20,14 +20,16 @@ class ChatAPI:
 
     TESTING: bool = False
 
-    def __init__(self, config: Config, memory: Memory, twitch_api: TwitchAPI, audio_api: AudioAPI, prompt: str, testing: bool):
+    def __init__(self, config: Config, memory: Memory, audio_api: AudioAPI, twitch_api: TwitchAPI, testing: bool):
         self.config = config
         self.twitch_api = twitch_api
         self.audio_api = audio_api
         self.memory = memory
-        self.prompt = prompt
         self.TESTING = testing
+
         openai.api_key = config.openai_api_key
+        self.prompt = f"You are an AI twitch chatter. Keep your messages short, under 20 words and don't put usernames in the message. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
+        self.prompt += self.config.prompt_extras
 
     def get_response_AI(self, username: str, message: str, no_twitch_chat: bool = False, no_audio_context: bool = False):
         found = self.check_banned_words(message)

@@ -26,11 +26,12 @@ class AudioAPI:
     no_punctuation = str.maketrans('', '', string.punctuation)
 
     # Variables for verbal mention detection
-    verbal_mention_callback: Callable[[List[str]], None]
     detected_lines = []
     detected_lines_queue = Queue()
 
-    # Thread safe Queue for passing data from the threaded recording loop.
+    # Thread variables
+    stop_event = threading.Event()
+    thread: threading.Thread
     data_queue = Queue()
 
     # Transcriptions
@@ -38,10 +39,8 @@ class AudioAPI:
     transcription_queue1 = Queue()
     transcription_queue2 = Queue()
 
-    def __init__(self, config: Config, verbal_mention_callback: Callable[[List[str]], None]):
+    def __init__(self, config: Config):
         print("Initializing Audio API...")
-
-        self.verbal_mention_callback = verbal_mention_callback
         self.config = config
 
         # Load the model.
@@ -50,14 +49,27 @@ class AudioAPI:
 
         print("Audio API Initialized.")
 
+    # Start the main thread.
+    def start(self):
+        self.thread = threading.Thread(target=self.listen_to_audio)
+        self.thread.daemon = True
+        self.thread.start()
+        print("Audio API Started.")
+
+    # Stop the main thread.
+    def stop(self):
+        self.stop_event.set()
+        self.thread.join()
+        print("Audio API Stopped.")
+
     # Thread that records output audio from the default speaker.
-    def recording_thread(self, stop_event: threading.Event):
+    def recording_thread(self):
         speaker_id = str(sc.default_speaker().name)
         speaker_output = sc.get_microphone(speaker_id, include_loopback=True)
         data = []
 
         # Keep recording until we have enough valid data.
-        while not stop_event.is_set():
+        while not self.stop_event.is_set():
             data = speaker_output.record(
                 samplerate=SAMPLE_RATE, numframes=SAMPLE_RATE*RECORD_TIMOUT)
 
@@ -80,10 +92,9 @@ class AudioAPI:
             time.sleep(0.1)
 
 
-    def listen_to_audio(self, stop_event: threading.Event):
+    def listen_to_audio(self):
         # Start the recording thread.
-        recording_thread = threading.Thread(
-            target=self.recording_thread, args=(stop_event,))
+        recording_thread = threading.Thread(target=self.recording_thread)
         recording_thread.start()
 
         # initate sample with an empty 2 dimentional array
@@ -92,7 +103,7 @@ class AudioAPI:
         # Temp file used to save the audio data and then transcribe it.
         temp_file = NamedTemporaryFile(suffix=".wav").name
 
-        while not stop_event.is_set():
+        while not self.stop_event.is_set():
             # Get the data from the thread safe queue.
             try:
                 data = self.data_queue.get(timeout=5)
@@ -232,3 +243,6 @@ class AudioAPI:
                 detected = True
 
         return detected
+
+    def set_verbal_mention_callback(self, callback: Callable[[List[str]], None]):
+        self.verbal_mention_callback = callback

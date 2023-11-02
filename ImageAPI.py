@@ -52,7 +52,7 @@ class ImageAPI:
 
     # Generate caption for image
     def generate_caption(self, image: Image, text: str):
-        inputs = self.processor(image, text, return_tensors="pt").to("cuda")
+        inputs = self.processor(image, return_tensors="pt").to("cuda")
         out = self.model.generate(**inputs, max_length=64)
         description = self.processor.decode(out[0], skip_special_tokens=True)
 

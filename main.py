@@ -2,7 +2,6 @@ import signal
 import threading
 import sys
 import os
-import msvcrt
 import json
 import time
 import dataclasses
@@ -10,6 +9,7 @@ from ChatAPI import ChatAPI
 from TwitchAPI import TwitchAPI
 from BotAPI import BotAPI
 from AudioAPI import AudioAPI
+from ImageAPI import ImageAPI
 from models import Config, Memory
 
 
@@ -24,6 +24,7 @@ class CLI:
     config: Config
     memory: Memory
 
+    image_api: ImageAPI
     audio_api: AudioAPI
     twitch_api: TwitchAPI
     chat_api: ChatAPI
@@ -44,6 +45,9 @@ class CLI:
 
         # Setup
         self.add_mistakes_to_detection_words()
+
+        # Image API
+        self.image_api = ImageAPI(self.config)
 
         # Audio API
         self.audio_api = AudioAPI(self.config)
@@ -81,12 +85,7 @@ class CLI:
 
             time_to_reaction = self.memory.reaction_time - time.time()
 
-            # Check if there is input available on stdin
-            if msvcrt.kbhit():
-                user_input = input("Enter something: ")
-                self.bot_api.handle_commands(user_input, external=False)
-
-            elif old_message_count != self.bot_api.get_message_count() or old_captions != captions:
+            if old_message_count != self.bot_api.get_message_count() or old_captions != captions:
                 os.system('cls')
                 print(
                     f"Counter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
@@ -160,6 +159,7 @@ class CLI:
         self.bot_api.stop()
         self.audio_api.stop()
         self.twitch_api.shutdown()
+        self.image_api.shutdown()
 
         print('Saving config...')
         self.save_config()

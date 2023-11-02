@@ -1,5 +1,6 @@
 import queue
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
@@ -25,16 +26,21 @@ class TwitchAPI:
         self.message_queue = queue.Queue()
 
         print("Initializing Twitch API...")
-        asyncio.run(self.authenticate())
-        asyncio.run(self.init_chat())
+         
+        with ThreadPoolExecutor() as pool:
+            pool.submit(lambda:asyncio.run(self.authenticate()))
+        with ThreadPoolExecutor() as pool:
+            pool.submit(lambda:asyncio.run(self.init_chat()))
         print("Twitch API Initialized")
 
 
     # API Shutdown
     def shutdown(self):
-        asyncio.run(self.chat.leave_room(self.config.twitch_channel))
+        with ThreadPoolExecutor() as pool:
+            pool.submit(lambda:asyncio.run(self.chat.leave_room(self.config.twitch_channel)))
         self.chat.stop()
-        asyncio.run(self.twitch.close())
+        with ThreadPoolExecutor() as pool:
+            pool.submit(lambda:asyncio.run(self.twitch.close()))
         print("Twitch API Shutdown")
 
 
@@ -78,7 +84,8 @@ class TwitchAPI:
 
         # Send message
         if not self.TESTING:
-            asyncio.run(self.chat.send_message(self.config.twitch_channel, message))
+            with ThreadPoolExecutor() as pool:
+                pool.submit(lambda:asyncio.run(self.chat.send_message(self.config.twitch_channel, message)))
 
 
     # Get stream information

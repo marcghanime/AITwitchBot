@@ -100,8 +100,8 @@ class ChatAPI:
             }
         ]
 
-    def update_prompt(self, username: str, no_twitch_chat: bool, no_audio_context: bool):
-        visual_context = self.image_api.get_visual_context()
+    def update_prompt(self, username: str, message: str, no_twitch_chat: bool, no_audio_context: bool):
+        visual_context = self.image_api.get_visual_context(message)
         twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
         captions = [] if no_audio_context else self.audio_api.transcription_queue2.get()
 
@@ -165,7 +165,7 @@ class ChatAPI:
         })
 
         if update_prompt:
-            self.update_prompt(username, no_twitch_chat, no_audio_context)
+            self.update_prompt(username, message, no_twitch_chat, no_audio_context)
 
     # Remove unwanted charachters from the message
 

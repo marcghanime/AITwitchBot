@@ -12,8 +12,8 @@ def main():
     WhisperModel("medium.en", device="cuda", compute_type="float16")
 
     print("checking/downloading blip model...")
-    BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-    BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+    BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+    BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large").to("cuda")
 
     try:
         with open("config.json", "r", encoding='utf-8'):

@@ -18,8 +18,8 @@ class ImageAPI:
         print("Initializing Image API...")
         
         # Set up the image captioning model
-        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large").to("cuda")
         
         # Set up the browser
         chrome_options = webdriver.ChromeOptions()
@@ -52,7 +52,7 @@ class ImageAPI:
 
     # Generate caption for image
     def generate_caption(self, image: Image):
-        inputs = self.processor(image, return_tensors="pt")
+        inputs = self.processor(image, return_tensors="pt").to("cuda")
         out = self.model.generate(**inputs, max_length=64)
         description = self.processor.decode(out[0], skip_special_tokens=True)
 
@@ -67,6 +67,15 @@ class ImageAPI:
         image = Image.open(screenshot_bytes).convert('RGB')
 
         return image
+    
+    def get_visual_context(self):
+        # Get the screenshot
+        image = self.take_screenshot()
+
+        # Get the caption
+        caption = self.generate_caption(image)
+
+        return caption
     
     # Close the browser
     def shutdown(self):

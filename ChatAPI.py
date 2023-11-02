@@ -8,6 +8,7 @@ import openai
 
 from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
+from ImageAPI import ImageAPI
 from models import Memory, Config
 
 
@@ -16,14 +17,16 @@ class ChatAPI:
     memory: Memory
     twitch_api: TwitchAPI
     audio_api: AudioAPI
+    image_api: ImageAPI
     prompt: str
 
     TESTING: bool = False
 
-    def __init__(self, config: Config, memory: Memory, audio_api: AudioAPI, twitch_api: TwitchAPI, testing: bool):
+    def __init__(self, config: Config, memory: Memory, audio_api: AudioAPI, image_api: ImageAPI, twitch_api: TwitchAPI, testing: bool):
         self.config = config
         self.twitch_api = twitch_api
         self.audio_api = audio_api
+        self.image_api = image_api
         self.memory = memory
         self.TESTING = testing
 
@@ -98,10 +101,11 @@ class ChatAPI:
         ]
 
     def update_prompt(self, username: str, no_twitch_chat: bool, no_audio_context: bool):
+        visual_context = self.image_api.get_visual_context()
         twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
         captions = [] if no_audio_context else self.audio_api.transcription_queue2.get()
 
-        new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
+        new_prompt = self.generate_prompt_extras(twitch_chat_history, captions, visual_context)
         self.memory.conversations[username][0]["content"] = new_prompt
 
         limit: int = self.config.openai_api_max_tokens_total - \
@@ -117,13 +121,13 @@ class ChatAPI:
                 if len(captions) != 0:
                     captions.pop(0)
 
-                new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
+                new_prompt = self.generate_prompt_extras(twitch_chat_history, captions, visual_context)
                 self.memory.conversations[username][0]["content"] = new_prompt
         except Exception as error:
             error_msg = f"{type(error).__name__}: {str(error)}"
             self.log_error(error_msg, username)
 
-    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: List[str]):
+    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: List[str], visual_context: str):
         twitch_chat_history_string = ""
         caption_string = ""
 
@@ -133,7 +137,10 @@ class ChatAPI:
         if len(captions) > 0:
             caption_string = f" - Live captions of what {self.config.twitch_channel} is currently saying: '{' '.join(captions)}'"
 
-        return self.prompt + caption_string + twitch_chat_history_string
+        if len(visual_context) > 0:
+            visual_context_string = f" - Visual context of what is shown on the stream: {visual_context}"
+
+        return self.prompt + caption_string + twitch_chat_history_string + visual_context_string
 
     def add_message_to_conversation(
             self,

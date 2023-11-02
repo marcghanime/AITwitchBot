@@ -11,8 +11,6 @@ from BotAPI import BotAPI
 from AudioAPI import AudioAPI
 from ImageAPI import ImageAPI
 from models import Config, Memory
-from IPython.display import clear_output
-from IPython import get_ipython
 
 
 TESTING: bool = False
@@ -58,7 +56,7 @@ class CLI:
         self.twitch_api = TwitchAPI(self.config, TESTING)
 
         # Chat API
-        self.chat_api = ChatAPI(self.config, self.memory, self.audio_api, self.twitch_api, TESTING)
+        self.chat_api = ChatAPI(self.config, self.memory, self.audio_api, self.image_api, self.twitch_api, TESTING)
         
         # Bot API
         self.bot_api = BotAPI(self.config, self.memory, self.audio_api, self.twitch_api, self.chat_api, TESTING)
@@ -75,12 +73,7 @@ class CLI:
         old_captions = ""
         captions = ""
 
-        
-
-        if 'google.colab' in str(get_ipython()):
-            clear_output()
-        else:
-            os.system('cls')
+        os.system('cls')
         
         print(
             f"Message-Counter: {old_message_count}\n Captions: \n {captions}")
@@ -95,10 +88,7 @@ class CLI:
 
             if old_message_count != self.bot_api.get_message_count() or old_captions != captions:
                 
-                if 'google.colab' in str(get_ipython()):
-                    clear_output()
-                else:
-                    os.system('cls')
+                os.system('cls')
 
                 print(
                     f"Counter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")

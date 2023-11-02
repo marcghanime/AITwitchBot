@@ -44,8 +44,7 @@ class AudioAPI:
         self.config = config
 
         # Load the model.
-        self.audio_model = WhisperModel(
-            "base.en", device="cpu", compute_type="int8")
+        self.audio_model = WhisperModel("medium.en", device="cuda", compute_type="float16")
 
         print("Audio API Initialized.")
 

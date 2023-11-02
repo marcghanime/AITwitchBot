@@ -9,7 +9,7 @@ from models import Config
 
 def main():
     print("checking/downloading whisper model...")
-    WhisperModel("base.en", device="cpu", compute_type="int8")
+    WhisperModel("medium.en", device="cuda", compute_type="float16")
 
     print("checking/downloading blip model...")
     BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")

@@ -11,6 +11,8 @@ from BotAPI import BotAPI
 from AudioAPI import AudioAPI
 from ImageAPI import ImageAPI
 from models import Config, Memory
+from IPython.display import clear_output
+from IPython import get_ipython
 
 
 TESTING: bool = False
@@ -73,7 +75,13 @@ class CLI:
         old_captions = ""
         captions = ""
 
-        os.system('cls')
+        
+
+        if 'google.colab' in str(get_ipython()):
+            clear_output()
+        else:
+            os.system('cls')
+        
         print(
             f"Message-Counter: {old_message_count}\n Captions: \n {captions}")
 
@@ -86,7 +94,12 @@ class CLI:
             time_to_reaction = self.memory.reaction_time - time.time()
 
             if old_message_count != self.bot_api.get_message_count() or old_captions != captions:
-                os.system('cls')
+                
+                if 'google.colab' in str(get_ipython()):
+                    clear_output()
+                else:
+                    os.system('cls')
+
                 print(
                     f"Counter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
 

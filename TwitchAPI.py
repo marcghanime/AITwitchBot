@@ -37,7 +37,7 @@ class TwitchAPI:
     # API Shutdown
     def shutdown(self):
         with ThreadPoolExecutor() as pool:
-            pool.submit(lambda:asyncio.run(self.chat.leave_room(self.config.twitch_channel)))
+            pool.submit(lambda:asyncio.run(self.chat.leave_room(self.config.target_channel)))
         self.chat.stop()
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.twitch.close()))
@@ -56,13 +56,13 @@ class TwitchAPI:
         self.chat.start()
 
         # Join channel
-        await self.chat.join_room(self.config.twitch_channel)
+        await self.chat.join_room(self.config.target_channel)
 
 
     # This will be called whenever a message in a channel was send by either the bot OR another user
     async def on_message(self, msg: ChatMessage):
         # Check if user is the bot itself
-        if msg.user.name == self.config.bot_nickname.lower():
+        if msg.user.name == self.config.bot_username.lower():
             return
 
         # Add message to chat history
@@ -85,7 +85,7 @@ class TwitchAPI:
         # Send message
         if not self.TESTING:
             with ThreadPoolExecutor() as pool:
-                pool.submit(lambda:asyncio.run(self.chat.send_message(self.config.twitch_channel, message)))
+                pool.submit(lambda:asyncio.run(self.chat.send_message(self.config.target_channel, message)))
 
 
     # Get stream information
@@ -94,7 +94,7 @@ class TwitchAPI:
         target_stream = None
 
         # Get channel
-        channels = self.twitch.get_users(logins=[self.config.twitch_channel])
+        channels = self.twitch.get_users(logins=[self.config.target_channel])
         async for channel in channels:
             target_channel = channel
             break

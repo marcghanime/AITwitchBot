@@ -33,7 +33,7 @@ class ImageAPI:
         self.browser.maximize_window()
 
         # Navigate to the Twitch stream
-        self.browser.get("https://www.twitch.tv/" + config.twitch_channel)
+        self.browser.get("https://www.twitch.tv/" + config.target_channel)
         
         # Wait for the stream to load
         time.sleep(10)

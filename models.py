@@ -3,13 +3,10 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Config:
-    twitch_channel: str = ""
-    bot_nickname: str = ""
+    target_channel: str = ""
+    bot_username: str = ""
     twitch_api_client_id: str = ""
     twitch_api_client_secret: str = ""
-    twitch_api_oauth_token: str = ""
-    twitch_chat_server: str = "irc.chat.twitch.tv"
-    twitch_chat_port: int = 6667
     twitch_user_token: str = ""
     twitch_user_refresh_token: str = ""
     openai_api_key: str = ""

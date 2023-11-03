@@ -20,13 +20,10 @@ I only tested this on windows so I don't know if it works on other operating sys
 - [ ] Fetch the current playing song from spotify
 
 ## Config File
-- `must fill` **twitch_channel** - The channel the bot will join
-- `must fill` **bot_nickname** - The bots username
+- `must fill` **target_channel** - The channel the bot will join
+- `must fill` **bot_username** - The bots username
 - `must fill` **twitch_api_client_id** - The client id for the twitch api - [Get it here](https://dev.twitch.tv/console/apps)
 - `must fill` **twitch_api_client_secret** - The client secret for the twitch api - [Get it here](https://dev.twitch.tv/console/apps)
-- `automatically filled` **twitch_api_oauth_token** - The oauth token for the twitch api
-- `has a default value` **twitch_chat_server** - The twitch chat server
-- `has a default value` **twitch_chat_port** - The twitch chat port
 - `automatically filled` **twitch_user_token** - The oauth token for the twitch user (When running the bot for the first time it will open a browser window to get the token, make sure you are logged in to the correct account)
 - `automatically filled` **twitch_user_refresh_token** - The refresh token for the twitch user
 - `must fill` **openai_api_key** - The openai api key - [Get it here](https://platform.openai.com/account/api-keys)
@@ -36,7 +33,7 @@ I only tested this on windows so I don't know if it works on other operating sys
 - `automatically filled` **detection_words** - The 'verbal' words that will trigger the bot to respond
 
 ## Commands 
-The following commands are available to the mods via !{bot_nickname}. They are also available from the script console:
+The following commands are available to the mods via !{bot_username}. They are also available from the script console:
 + **timeout [*username*] [*seconds*]** - the bot ignores the user for the given duration
 + **reset [*username*]** - clears the conversation memory with the given user
 + **cooldown [*minutes*]** - puts the bot in cooldown for the given duration (ignores all messages)

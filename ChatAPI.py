@@ -184,8 +184,8 @@ class ChatAPI:
         return str(text)
 
     def remove_mentions(self, text: str, username: str):
-        text = text.replace("@User", "").replace("@user", "").replace(f"@{self.config.bot_nickname}", "").replace(
-            f"@{username}:", "").replace(f"@{username}", "").replace(f"{self.config.bot_nickname}:", "")
+        text = text.replace("@User", "").replace("@user", "").replace(f"@{self.config.bot_username}", "").replace(
+            f"@{username}:", "").replace(f"@{username}", "").replace(f"{self.config.bot_username}:", "")
         return text
 
     def remove_links(self, text: str):

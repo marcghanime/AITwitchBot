@@ -229,7 +229,7 @@ class AudioAPI:
             if found:
                 # Replace the word with bot's name
                 fixed_line = re.sub(r'\b{}\b'.format(
-                    found), self.config.bot_nickname, stripped_line, flags=re.IGNORECASE)
+                    found), self.config.bot_username, stripped_line, flags=re.IGNORECASE)
 
                 # Add the line to the detected lines
                 self.detected_lines.append(

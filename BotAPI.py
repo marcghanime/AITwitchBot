@@ -63,8 +63,8 @@ class BotAPI:
 
     # Setup constant strings
     def setup_strings(self):
-        self.command_help = f"Must be {self.config.twitch_channel} or a Mod. Usage: !{self.config.bot_nickname} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
-        self.react_string = f"repond or react to the last thing {self.config.twitch_channel} said based only on the provided live captions"
+        self.command_help = f"Must be {self.config.target_channel} or a Mod. Usage: !{self.config.bot_username} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
+        self.react_string = f"repond or react to the last thing {self.config.target_channel} said based only on the provided live captions"
 
     # Thread to process messages received from the Twitch API
     def process_messages(self):
@@ -78,9 +78,9 @@ class BotAPI:
             username = entry.user.name
             message = entry.text
 
-            if message.lower().startswith(f"!{self.config.bot_nickname.lower()}"):
-                if entry.user.mod or entry.user.name == self.config.twitch_channel.lower():
-                    if message.lower() == f"!{self.config.bot_nickname.lower()}":
+            if message.lower().startswith(f"!{self.config.bot_username.lower()}"):
+                if entry.user.mod or entry.user.name == self.config.target_channel.lower():
+                    if message.lower() == f"!{self.config.bot_username.lower()}":
                         self.twitch_api.send_message(self.command_help)
                     else:
                         self.handle_commands(message)
@@ -91,11 +91,11 @@ class BotAPI:
                     time.sleep(self.memory.slow_mode_seconds)
 
             elif self.react() and self.moderation(""):
-                self.send_response(self.config.twitch_channel, self.react_string, react=True)
+                self.send_response(self.config.target_channel, self.react_string, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
 
             elif self.engage(message) and self.moderation(username):
-                self.send_response(username, f"@{self.config.twitch_channel} {message}")
+                self.send_response(username, f"@{self.config.target_channel} {message}")
                 if self.memory.slow_mode_seconds > 0:
                     time.sleep(self.memory.slow_mode_seconds)
 
@@ -104,7 +104,7 @@ class BotAPI:
 
     # Send the intro message
     def send_intro(self):
-        intro_message = f"Hi, I'm back <3 !{self.config.bot_nickname} for mod commands or checkout my channel pannels."
+        intro_message = f"Hi, I'm back <3 !{self.config.bot_username} for mod commands or checkout my channel pannels."
         self.twitch_api.send_message(intro_message)
 
     def get_message_count(self):
@@ -126,7 +126,7 @@ class BotAPI:
 
     # Check if the bot was mentioned in the message
     def mentioned(self, username: str, message: str) -> bool:
-        return username != self.config.bot_nickname.lower() and self.config.bot_nickname.lower() in message.lower()
+        return username != self.config.bot_username.lower() and self.config.bot_username.lower() in message.lower()
 
     # Check if the bot should engage
     def engage(self, message: str) -> bool:
@@ -187,14 +187,14 @@ class BotAPI:
         if respond and transctiption_index:
             captions = " ".join(
                 audio_transcription[transctiption_index - 2: transctiption_index + 4])
-            message = f"{self.config.twitch_channel} talked to/about you ({self.config.bot_nickname}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_nickname})"
-            self.send_response(self.config.twitch_channel, message, respond=True)
+            message = f"{self.config.target_channel} talked to/about you ({self.config.bot_username}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_username})"
+            self.send_response(self.config.target_channel, message, respond=True)
 
 
     # Handles commands sent to the bot
     def handle_commands(self, input: str, external: bool = True) -> None:
-        input = input.lower().replace(f"!{self.config.bot_nickname.lower()} ", "").replace(
-            f"!{self.config.bot_nickname.lower()}", "")
+        input = input.lower().replace(f"!{self.config.bot_username.lower()} ", "").replace(
+            f"!{self.config.bot_username.lower()}", "")
 
         # reset <username> - clears the conversation memory with the given username
         if input.startswith("reset "):

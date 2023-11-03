@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 class Config:
     target_channel: str = ""
     bot_username: str = ""
+    admin_username: str = ""
     twitch_api_client_id: str = ""
     twitch_api_client_secret: str = ""
     twitch_user_token: str = ""

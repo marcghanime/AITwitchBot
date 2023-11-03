@@ -6,6 +6,8 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException, ChatEvent
 from twitchAPI.chat import Chat, ChatMessage
+from twitchAPI.pubsub import PubSub
+from twitchAPI.helper import first
 
 from models import Config
 
@@ -29,8 +31,9 @@ class TwitchAPI:
          
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.authenticate()))
-        with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.init_chat()))
+            pool.submit(lambda:asyncio.run(self.init_pubsub()))
+
         print("Twitch API Initialized")
 
 
@@ -58,6 +61,15 @@ class TwitchAPI:
         # Join channel
         await self.chat.join_room(self.config.target_channel)
 
+    # Initialize PubSub
+    async def init_pubsub(self):
+        pubsub = PubSub(self.twitch)
+        pubsub.start()
+        user = await first(self.twitch.get_users(logins=[self.config.bot_username]))
+        pubsub.listen_whispers(user.id, self.on_whisper)
+
+    def on_whisper(self, whisper):
+        print(whisper)
 
     # This will be called whenever a message in a channel was send by either the bot OR another user
     async def on_message(self, msg: ChatMessage):
@@ -90,26 +102,13 @@ class TwitchAPI:
 
     # Get stream information
     async def get_stream_info(self):
-        target_channel = None
-        target_stream = None
-
         # Get channel
-        channels = self.twitch.get_users(logins=[self.config.target_channel])
-        async for channel in channels:
-            target_channel = channel
-            break
-
-        # Check if channel was found
-        if not target_channel:
-            return
+        target_channel = await first(self.twitch.get_users(logins=[self.config.target_channel]))
 
         # Get stream
-        streams = self.twitch.get_streams(user_id=target_channel.id)
-        async for stream in streams:
-            target_stream = stream
-            break
+        stream = await first(self.twitch.get_streams(user_id=target_channel.id))
 
-        return target_stream
+        return stream
 
 
     # Authenticate Twitch API

@@ -22,6 +22,7 @@ I only tested this on windows so I don't know if it works on other operating sys
 ## Config File
 - `must fill` **target_channel** - The channel the bot will join
 - `must fill` **bot_username** - The bots username
+- `optional` **admin_username** - The username of the person running the bot (used for admin commands)
 - `must fill` **twitch_api_client_id** - The client id for the twitch api - [Get it here](https://dev.twitch.tv/console/apps)
 - `must fill` **twitch_api_client_secret** - The client secret for the twitch api - [Get it here](https://dev.twitch.tv/console/apps)
 - `automatically filled` **twitch_user_token** - The oauth token for the twitch user (When running the bot for the first time it will open a browser window to get the token, make sure you are logged in to the correct account)
@@ -33,7 +34,7 @@ I only tested this on windows so I don't know if it works on other operating sys
 - `automatically filled` **detection_words** - The 'verbal' words that will trigger the bot to respond
 
 ## Commands 
-The following commands are available to the mods via !{bot_username}. They are also available from the script console:
+The following commands are available to **admin**, **streamer** and **mods** via !{bot_username} :
 + **timeout [*username*] [*seconds*]** - the bot ignores the user for the given duration
 + **reset [*username*]** - clears the conversation memory with the given user
 + **cooldown [*minutes*]** - puts the bot in cooldown for the given duration (ignores all messages)
@@ -43,7 +44,7 @@ The following commands are available to the mods via !{bot_username}. They are a
 + **banword [*word*]** - ignotes all messages containing the given word
 + **unbanword [*word*]** - unbans the word
 
-The following commands are only available from the script console:
+The following commands are only available to the **admin**:
 + **op [*message*]** - sends a message in chat as (operator)
 + **set-emt [*count*]** - (**E**ngage **M**essage **T**hreshold) sets the amount of chats the bot will receive before it will engage without being mentioned
 + **set-elmt [*count*]** - sets the minimum length of the message the bot will engage with when EMT is reached

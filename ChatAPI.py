@@ -31,7 +31,7 @@ class ChatAPI:
         self.TESTING = testing
 
         openai.api_key = config.openai_api_key
-        self.prompt = f"You are an AI twitch chatter. Keep your messages short, under 20 words and don't put usernames in the message. Be non verbose, sweet and sometimes funny. The following are some info about the stream you're watching: "
+        self.prompt = f"You are an AI twitch chatter, you can read the chat through the given Twitch chat history, you can hear the stream through the given audio captions and you can see the stream through the given visual captions. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
         self.prompt += self.config.prompt_extras
 
     def get_response_AI(self, username: str, message: str, no_twitch_chat: bool = False, no_audio_context: bool = False):
@@ -109,7 +109,7 @@ class ChatAPI:
         self.memory.conversations[username][0]["content"] = new_prompt
 
         limit: int = self.config.openai_api_max_tokens_total - \
-            self.config.openai_api_max_tokens_response - 100  # 100 is a buffer
+            self.config.openai_api_max_tokens_response - 50  # 50 is a buffer
 
         try:
             while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
@@ -130,15 +130,16 @@ class ChatAPI:
     def generate_prompt_extras(self, twitch_chat_history: List[str], captions: List[str], visual_context: str):
         twitch_chat_history_string = ""
         caption_string = ""
+        visual_context_string = ""
 
         if len(twitch_chat_history) > 0:
-            twitch_chat_history_string = f" - Recents messages in Twitch chat: {' | '.join(twitch_chat_history)}"
+            twitch_chat_history_string = f" - Twitch chat history: {' | '.join(twitch_chat_history)}"
 
         if len(captions) > 0:
-            caption_string = f" - Live captions of what {self.config.twitch_channel} is currently saying: '{' '.join(captions)}'"
+            caption_string = f" - Audio captions: {' '.join(captions)}"
 
         if len(visual_context) > 0:
-            visual_context_string = f" - Visual context of what is shown on the stream: {visual_context}"
+            visual_context_string = f" - Visual captions: {visual_context}"
 
         return self.prompt + caption_string + twitch_chat_history_string + visual_context_string
 

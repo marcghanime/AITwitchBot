@@ -158,17 +158,17 @@ class CLI:
     def shutdown_handler(self, signal, frame):
         print('Shutting down...')
         self.stop_event.set()
-
-        self.bot_api.stop()
-        self.audio_api.stop()
-        self.twitch_api.shutdown()
-        self.image_api.shutdown()
-
+        
         print('Saving config...')
         self.save_config()
 
         print('Saving memory...')
         self.save_memory()
+
+        self.bot_api.stop()
+        self.audio_api.stop()
+        self.twitch_api.shutdown()
+        self.image_api.shutdown()
 
         sys.exit(0)
 

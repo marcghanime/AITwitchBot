@@ -5,8 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException, ChatEvent
-from twitchAPI.chat import Chat, ChatMessage
-from twitchAPI.pubsub import PubSub
+from twitchAPI.chat import Chat, ChatMessage, WhisperEvent
 from twitchAPI.helper import first
 
 from models import Config
@@ -31,8 +30,8 @@ class TwitchAPI:
          
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.authenticate()))
+        with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.init_chat()))
-            pool.submit(lambda:asyncio.run(self.init_pubsub()))
 
         print("Twitch API Initialized")
 
@@ -54,23 +53,15 @@ class TwitchAPI:
 
         # Listen to chat messages
         self.chat.register_event(ChatEvent.MESSAGE, self.on_message)
+        # Listen to whispers
+        self.chat.register_event(ChatEvent.WHISPER, self.on_whisper)
 
         # We are done with our setup, lets start this bot up!
         self.chat.start()
 
         # Join channel
         await self.chat.join_room(self.config.target_channel)
-
-    # Initialize PubSub
-    async def init_pubsub(self):
-        pubsub = PubSub(self.twitch)
-        pubsub.start()
-        user = await first(self.twitch.get_users(logins=[self.config.bot_username]))
-        pubsub.listen_whispers(user.id, self.on_whisper)
-
-    def on_whisper(self, whisper):
-        print(whisper)
-
+    
     # This will be called whenever a message in a channel was send by either the bot OR another user
     async def on_message(self, msg: ChatMessage):
         # Check if user is the bot itself
@@ -87,6 +78,8 @@ class TwitchAPI:
         # Add message to message queue
         self.message_queue.put(msg)
 
+    async def on_whisper(self, whisper: WhisperEvent):
+        print(whisper.message)
 
     # Send message to chat
     def send_message(self, message: str):
@@ -122,7 +115,7 @@ class TwitchAPI:
         refresh_token: str = self.config.twitch_user_refresh_token
 
         # Set scope
-        scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT]
+        scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT, AuthScope.WHISPERS_READ, AuthScope.WHISPERS_EDIT]
 
         # Check if refresh is needed
         try:
@@ -132,9 +125,11 @@ class TwitchAPI:
         except (UnauthorizedException, InvalidRefreshTokenException):
             # Start authentication flow
             auth = UserAuthenticator(self.twitch, scope, force_verify=True)
-            auth_result = await auth.authenticate()
-            if auth_result:
-                twitch_user_token, refresh_token = auth_result
+            try:
+                twitch_user_token, refresh_token = await auth.authenticate()
+            except:
+                print("Authentication failed")
+                return
 
         # Set user authentication
         await self.twitch.set_user_authentication(twitch_user_token, scope, refresh_token)

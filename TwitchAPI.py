@@ -16,6 +16,7 @@ class TwitchAPI:
     twitch: Twitch
     chat: Chat
     message_queue: queue.Queue[ChatMessage]
+    whisper_queue: queue.Queue[WhisperEvent]
     chat_history = []
 
     TESTING: bool = False
@@ -25,6 +26,7 @@ class TwitchAPI:
         self.TESTING = testing
 
         self.message_queue = queue.Queue()
+        self.whisper_queue = queue.Queue()
 
         print("Initializing Twitch API...")
          
@@ -79,7 +81,7 @@ class TwitchAPI:
         self.message_queue.put(msg)
 
     async def on_whisper(self, whisper: WhisperEvent):
-        print(whisper.message)
+        self.whisper_queue.put(whisper)
 
     # Send message to chat
     def send_message(self, message: str):
@@ -146,3 +148,7 @@ class TwitchAPI:
     # Return the message queue
     def get_message_queue(self):
         return self.message_queue
+    
+    # Return the whisper queue
+    def get_whisper_queue(self):
+        return self.whisper_queue

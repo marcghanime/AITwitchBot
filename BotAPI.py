@@ -8,7 +8,7 @@ from ChatAPI import ChatAPI
 from AudioAPI import AudioAPI
 from models import Config, Memory
 
-from twitchAPI.chat import ChatMessage
+from twitchAPI.chat import ChatMessage, WhisperEvent
 from typing import List
 
 
@@ -23,6 +23,7 @@ class BotAPI:
     thread: threading.Thread
     stop_event: threading.Event = threading.Event()
     message_queue: queue.Queue[ChatMessage]
+    whisper_queue: queue.Queue[WhisperEvent]
 
     # Strings
     command_help: str = ""
@@ -44,7 +45,8 @@ class BotAPI:
         self.TESTING = testing
 
         # Setup
-        self.message_queue = self.twitch_api.get_message_queue()   
+        self.message_queue = self.twitch_api.get_message_queue()
+        self.whisper_queue = self.twitch_api.get_whisper_queue()   
         self.audio_api.set_verbal_mention_callback(self.mentioned_verbally)     
         self.setup_strings()
     
@@ -53,6 +55,10 @@ class BotAPI:
         self.thread = threading.Thread(target=self.process_messages)
         self.thread.daemon = True
         self.thread.start()
+
+        self.whisper_thread = threading.Thread(target=self.process_whispers)
+        self.whisper_thread.daemon = True
+        self.whisper_thread.start()
         print("Bot Thread Started.")
 
     # Stop the bot
@@ -101,6 +107,18 @@ class BotAPI:
 
             else:
                 self.message_count += 1
+
+    def process_whispers(self):
+        while not self.stop_event.is_set():
+            # get the next whisper from the queue (this will block until a whisper is available or 2.5 seconds have passed)
+            try:
+                entry = self.whisper_queue.get(timeout=2.5)
+            except queue.Empty:
+                continue
+        
+        if entry.user.mod or entry.user.name == self.config.target_channel.lower() or entry.user.name == self.config.admin_username.lower():
+            self.handle_commands(entry.message, True)
+            
 
     # Send the intro message
     def send_intro(self):

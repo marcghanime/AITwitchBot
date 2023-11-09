@@ -1,6 +1,7 @@
 import json
 import re
 import time
+import requests
 from typing import List
 
 import tiktoken
@@ -31,7 +32,7 @@ class ChatAPI:
         self.TESTING = testing
 
         openai.api_key = config.openai_api_key
-        self.prompt = f"You are an AI twitch chatter, you can read the chat through the given Twitch chat history, you can hear the stream through the given audio captions and you can see the stream through the given visual captions. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
+        self.prompt = f"You are an AI twitch chatter, you can read the chat through the given Twitch chat history, you can hear the stream through the given audio captions and you can see the stream through the given image. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
         self.prompt += self.config.prompt_extras
 
     def get_response_AI(self, username: str, message: str, no_twitch_chat: bool = False, no_audio_context: bool = False):
@@ -39,25 +40,19 @@ class ChatAPI:
         if found:
             return f"Ignored message containing banned word: '{found}'"
 
-        self.add_message_to_conversation(
-            username, message, role="user", no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
+        self.add_user_message(username, message, no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
 
         try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                max_tokens=self.config.openai_api_max_tokens_response,
-                messages=self.memory.conversations[username]
-            )
+            response = self.get_response_api(self.memory.conversations[username])
 
-            finish_reason: str = response['choices'][0]['finish_reason']
+            finish_reason: str = response['choices'][0]['finish_details']['type']
             message = response['choices'][0]['message']['content']
 
             message = self.clean_message(message, username)
             if finish_reason == "length":
                 message = f"{message}..."
 
-            self.add_message_to_conversation(
-                username, message, role="assistant", update_prompt=False)
+            self.add_response_to_conversation(username, message)
 
             return message
         except Exception as error:
@@ -65,6 +60,21 @@ class ChatAPI:
             self.log_error(error_msg, username)
             return None
 
+    def get_response_api(self, messages):
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {openai.api_key}"
+        }
+
+        payload = {
+            "model": "gpt-4-vision-preview",
+            "messages": messages,
+            "max_tokens": self.config.openai_api_max_tokens_response
+        }
+
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+
+        return response.json()
 
     def check_banned_words(self, message: str):
         banned_words = self.memory.banned_words
@@ -101,11 +111,10 @@ class ChatAPI:
         ]
 
     def update_prompt(self, username: str, message: str, no_twitch_chat: bool, no_audio_context: bool):
-        visual_context = self.image_api.get_visual_context(message)
         twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
         captions = [] if no_audio_context else self.audio_api.transcription_queue2.get()
 
-        new_prompt = self.generate_prompt_extras(twitch_chat_history, captions, visual_context)
+        new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
 
         limit: int = self.config.openai_api_max_tokens_total - \
@@ -121,16 +130,16 @@ class ChatAPI:
                 if len(captions) != 0:
                     captions.pop(0)
 
-                new_prompt = self.generate_prompt_extras(twitch_chat_history, captions, visual_context)
+                new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
                 self.memory.conversations[username][0]["content"] = new_prompt
         except Exception as error:
             error_msg = f"{type(error).__name__}: {str(error)}"
             self.log_error(error_msg, username)
 
-    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: List[str], visual_context: str):
+
+    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: List[str]):
         twitch_chat_history_string = ""
         caption_string = ""
-        visual_context_string = ""
 
         if len(twitch_chat_history) > 0:
             twitch_chat_history_string = f" - Twitch chat history: {' | '.join(twitch_chat_history)}"
@@ -138,38 +147,70 @@ class ChatAPI:
         if len(captions) > 0:
             caption_string = f" - Audio captions: {' '.join(captions)}"
 
-        if len(visual_context) > 0:
-            visual_context_string = f" - Visual captions: {visual_context}"
+        return self.prompt + caption_string + twitch_chat_history_string
 
-        return self.prompt + caption_string + twitch_chat_history_string + visual_context_string
 
-    def add_message_to_conversation(
+    def add_user_message(
             self,
             username: str,
             message: str,
-            role: str,
             no_twitch_chat: bool = False,
-            no_audio_context: bool = False,
-            update_prompt: bool = True):
-
+            no_audio_context: bool = False):
+        
         if username not in self.memory.conversations:
             self.init_conversation(username)
-
-        if len(self.memory.conversations[username]) > 9:
+        
+        if len(self.memory.conversations[username]) > 10:
             self.memory.conversations[username].pop(1)
 
-        message = f"{username}: {message}" if role == "user" else message
+        message = f"{username}: {message}"
+        base64_image = self.image_api.get_base64_screenshot()
 
         self.memory.conversations[username].append({
-            "role": role,
-            "content": message
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": message
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}",
+                        "detail": "low"
+                    }
+                }
+            ]
         })
 
-        if update_prompt:
-            self.update_prompt(username, message, no_twitch_chat, no_audio_context)
+        self.update_prompt(username, message, no_twitch_chat, no_audio_context)
+
+
+    def add_response_to_conversation(
+            self,
+            username: str,
+            response: str):
+        
+        if username not in self.memory.conversations:
+            return
+        
+        # remove image from sent message
+        conversation_length = len(self.memory.conversations[username])
+        last_sent_message = self.memory.conversations[username][conversation_length-1]["content"][0]["text"]
+        self.memory.conversations[username][conversation_length-1] = {
+            "role": "user",
+            "content": last_sent_message
+        }
+
+        self.memory.conversations[username].append({
+            "role": "assistant",
+            "content": response
+        })
+
+        if len(self.memory.conversations[username]) > 10:
+            self.memory.conversations[username].pop(1)
 
     # Remove unwanted charachters from the message
-
     def clean_message(self, message, username):
         message = self.remove_mentions(message, username)
         message = self.remove_hashtags(message)

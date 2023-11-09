@@ -1,25 +1,19 @@
 from PIL import Image
-from transformers import BlipProcessor, BlipForConditionalGeneration
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
+import base64
 
 from models import Config
 import io
 import time
 
 class ImageAPI:
-    processor: BlipProcessor
-    model: BlipForConditionalGeneration
     browser: webdriver.Chrome
     video_element: WebElement
 
     def __init__(self, config: Config):
         print("Initializing Image API...")
-        
-        # Set up the image captioning model
-        self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
-        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large").to("cuda")
         
         # Set up the browser
         chrome_options = webdriver.ChromeOptions()
@@ -48,15 +42,6 @@ class ImageAPI:
         self.video_element = self.browser.find_element(by=By.TAG_NAME, value='video')
 
         print("Image API Initialized")
-
-
-    # Generate caption for image
-    def generate_caption(self, image: Image, text: str):
-        inputs = self.processor(image, return_tensors="pt").to("cuda")
-        out = self.model.generate(**inputs, max_length=64)
-        description = self.processor.decode(out[0], skip_special_tokens=True)
-
-        return description
     
     # Take screenshot of twitch stream
     def take_screenshot(self):       
@@ -68,14 +53,12 @@ class ImageAPI:
 
         return image
     
-    def get_visual_context(self, message: str):
-        # Get the screenshot
+    # Get the screenshot as a base64 string
+    def get_base64_screenshot(self):
         image = self.take_screenshot()
-
-        # Get the caption
-        caption = self.generate_caption(image, message)
-
-        return caption
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
     
     # Close the browser
     def shutdown(self):

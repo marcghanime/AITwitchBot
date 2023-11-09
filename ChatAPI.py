@@ -32,7 +32,7 @@ class ChatAPI:
         self.TESTING = testing
 
         openai.api_key = config.openai_api_key
-        self.prompt = f"You are an AI twitch chatter, you can read the chat through the given Twitch chat history, you can hear the stream through the given audio captions and you can see the stream through the given image. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
+        self.prompt = f"You are an AI twitch chatter, you can read the chat through the given Twitch chat history, you can hear the stream through the given audio captions and you can see the stream through the given image. You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
         self.prompt += self.config.prompt_extras
 
     def get_response_AI(self, username: str, message: str, no_twitch_chat: bool = False, no_audio_context: bool = False):

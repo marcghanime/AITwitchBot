@@ -31,7 +31,7 @@ class BotAPI:
 
     # Bot state
     message_count: int = 0
-    ignored_message_threshold: int = 50
+    ignored_message_threshold: int = 75
     length_message_threshold: int = 50
 
     TESTING: bool = False
@@ -70,7 +70,7 @@ class BotAPI:
     # Setup constant strings
     def setup_strings(self):
         self.command_help = f"Must be {self.config.target_channel} or a Mod. Usage: !{self.config.bot_username} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
-        self.react_string = f"repond or react to the last thing {self.config.target_channel} said based only on the provided live captions"
+        self.react_string = f"repond or react to the last thing {self.config.target_channel} said based only on the provided live captions and the image for context."
 
     # Thread to process messages received from the Twitch API
     def process_messages(self):
@@ -116,8 +116,9 @@ class BotAPI:
             except queue.Empty:
                 continue
         
-        if entry.user.mod or entry.user.name == self.config.target_channel.lower() or entry.user.name == self.config.admin_username.lower():
-            self.handle_commands(entry.message, True)
+            print(f"received whisper: {entry.message}")
+            if entry.user.mod or entry.user.name == self.config.target_channel.lower() or entry.user.name == self.config.admin_username.lower():
+                self.handle_commands(entry.message, True)
             
 
     # Send the intro message

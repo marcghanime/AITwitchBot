@@ -142,7 +142,8 @@ class ChatAPI:
         caption_string = ""
 
         if len(twitch_chat_history) > 0:
-            twitch_chat_history_string = f" - Twitch chat history: {' | '.join(twitch_chat_history)}"
+            twitch_chat = '\n'.join(twitch_chat_history)
+            twitch_chat_history_string = f" - Twitch chat history: '{twitch_chat}'"
 
         if len(captions) > 0:
             caption_string = f" - Audio captions: {' '.join(captions)}"

@@ -80,16 +80,13 @@ class CLI:
 
         while not self.stop_event.is_set():
             try:
-                captions = " ".join(self.audio_api.transcription_queue1.get(timeout=1))
+                captions = "\n".join(self.audio_api.transcription_queue1.get(timeout=1))
             except:
                 captions = old_captions
 
             time_to_reaction = self.memory.reaction_time - time.time()
 
             if old_message_count != self.bot_api.get_message_count() or old_captions != captions:
-                
-                os.system('cls')
-
                 print(
                     f"Counter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
 

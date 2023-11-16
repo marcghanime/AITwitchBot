@@ -118,7 +118,7 @@ class BotAPI:
         
             print(f"received whisper: {entry.message}")
             if entry.user.mod or entry.user.name == self.config.target_channel.lower() or entry.user.name == self.config.admin_username.lower():
-                self.handle_commands(entry.message, True)
+                self.handle_commands(entry.message, False)
             
 
     # Send the intro message
@@ -298,3 +298,9 @@ class BotAPI:
         elif input == ("intro") and not external:
             if not self.TESTING:
                 self.send_intro()
+
+        # react - manually trigger a reaction
+        elif input == ("react") and not external:
+            if not self.TESTING:
+                self.send_response(self.config.target_channel, self.react_string, react=True)
+                self.memory.reaction_time = time.time() + random.randint(300, 600)

@@ -1,15 +1,23 @@
 import json
 import dataclasses
+import argparse
 
 from faster_whisper import WhisperModel
-from transformers import BlipProcessor, BlipForConditionalGeneration
 
 from models import Config
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Setup the bot.')
+    parser.add_argument('--lite', action='store_true', help='Use as little resources as possible.')
+    args = parser.parse_args()
+
     print("checking/downloading whisper model...")
-    WhisperModel("medium.en", device="cuda", compute_type="float16")
+    
+    if args.lite:
+        WhisperModel("base.en", device="cpu", compute_type="int8")
+    else:
+        WhisperModel("medium.en", device="cuda", compute_type="float16")
 
     try:
         with open("config.json", "r", encoding='utf-8'):

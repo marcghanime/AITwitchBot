@@ -115,7 +115,7 @@ class BotAPI:
 
     # Send the intro message
     def send_intro(self):
-        intro_message = f"Hi, I'm back <3 !{self.config.bot_username} for mod commands or checkout my channel pannels."
+        intro_message = f"Hi, I'm back <3 for mod commands checkout my channel pannels or whisper me."
         self.twitch_api.send_message(intro_message)
 
     def get_message_count(self):

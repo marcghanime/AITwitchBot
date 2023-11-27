@@ -1,19 +1,17 @@
 import signal
 import threading
 import sys
-import os
 import json
 import time
 import dataclasses
+import argparse
+from argparse import Namespace
 from ChatAPI import ChatAPI
 from TwitchAPI import TwitchAPI
 from BotAPI import BotAPI
 from AudioAPI import AudioAPI
 from ImageAPI import ImageAPI
 from models import Config, Memory
-
-
-TESTING: bool = False
 
 TRANSCRIPTION_MISTAKES = {
     "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
@@ -32,7 +30,7 @@ class CLI:
 
     stop_event = threading.Event()
 
-    def __init__(self):
+    def __init__(self, args: Namespace):
         # Register shutdown handler
         signal.signal(signal.SIGINT, self.shutdown_handler)
 
@@ -50,16 +48,16 @@ class CLI:
         self.image_api = ImageAPI(self.config)
 
         # Audio API
-        self.audio_api = AudioAPI(self.config)
+        self.audio_api = AudioAPI(args, self.config)
 
         # Twitch API
-        self.twitch_api = TwitchAPI(self.config, TESTING)
+        self.twitch_api = TwitchAPI(args, self.config)
 
         # Chat API
-        self.chat_api = ChatAPI(self.config, self.memory, self.audio_api, self.image_api, self.twitch_api, TESTING)
+        self.chat_api = ChatAPI(args, self.config, self.memory, self.audio_api, self.image_api, self.twitch_api)
         
         # Bot API
-        self.bot_api = BotAPI(self.config, self.memory, self.audio_api, self.twitch_api, self.chat_api, TESTING)
+        self.bot_api = BotAPI(args, self.config, self.memory, self.audio_api, self.twitch_api, self.chat_api)
 
         # Start threads
         self.bot_api.start()
@@ -72,11 +70,8 @@ class CLI:
         old_message_count = self.bot_api.get_message_count()
         old_captions = ""
         captions = ""
-
-        os.system('cls')
         
-        print(
-            f"Message-Counter: {old_message_count}\n Captions: \n {captions}")
+        print(f"Message-Counter: {old_message_count}\n Captions: \n {captions}")
 
         while not self.stop_event.is_set():
             try:
@@ -171,4 +166,8 @@ class CLI:
 
 
 if __name__ == '__main__':
-    cli = CLI()
+    parser = argparse.ArgumentParser(description='Start the bot.')
+    parser.add_argument('--lite', action='store_true', help='Use as little resources as possible.')
+    parser.add_argument('--testing', action='store_true', help='Use testing mode.')
+    args = parser.parse_args()
+    cli = CLI(args)

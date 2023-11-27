@@ -3,6 +3,7 @@ import re
 import time
 import requests
 from typing import List
+from argparse import Namespace
 
 import tiktoken
 import openai
@@ -15,21 +16,20 @@ from models import Memory, Config
 
 class ChatAPI:
     config: Config
+    args: Namespace
     memory: Memory
     twitch_api: TwitchAPI
     audio_api: AudioAPI
     image_api: ImageAPI
     prompt: str
 
-    TESTING: bool = False
-
-    def __init__(self, config: Config, memory: Memory, audio_api: AudioAPI, image_api: ImageAPI, twitch_api: TwitchAPI, testing: bool):
+    def __init__(self, args: Namespace, config: Config, memory: Memory, audio_api: AudioAPI, image_api: ImageAPI, twitch_api: TwitchAPI):
         self.config = config
         self.twitch_api = twitch_api
         self.audio_api = audio_api
         self.image_api = image_api
         self.memory = memory
-        self.TESTING = testing
+        self.args = args
 
         openai.api_key = config.openai_api_key
         self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "

@@ -1,6 +1,7 @@
 import queue
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from argparse import Namespace
 
 from twitchAPI.twitch import Twitch, TwitchUser
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
@@ -13,6 +14,7 @@ from models import Config
 
 class TwitchAPI:
     config: Config
+    args: Namespace
     twitch: Twitch
     chat: Chat
     message_queue: queue.Queue[ChatMessage]
@@ -20,12 +22,10 @@ class TwitchAPI:
     chat_history = []
     bot_user: TwitchUser
 
-    TESTING: bool = False
-
-    def __init__(self, config: Config, testing: bool):
+    def __init__(self, args: Namespace, config: Config):
         self.config = config
-        self.TESTING = testing
-
+        self.args = args
+        
         self.message_queue = queue.Queue()
         self.whisper_queue = queue.Queue()
 
@@ -89,14 +89,16 @@ class TwitchAPI:
 
     # Send message to chat
     def send_message(self, message: str):
+        if self.args.testing:
+            return
+
         # Limit message length
         if len(message) > 500:
             message = message[:475] + "..."
 
         # Send message
-        if not self.TESTING:
-            with ThreadPoolExecutor() as pool:
-                pool.submit(lambda:asyncio.run(self.chat.send_message(self.config.target_channel, message)))
+        with ThreadPoolExecutor() as pool:
+            pool.submit(lambda:asyncio.run(self.chat.send_message(self.config.target_channel, message)))
 
 
     # Send whisper to user

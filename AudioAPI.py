@@ -5,6 +5,7 @@ import time
 from typing import Callable, List
 from queue import Queue, Empty
 from tempfile import NamedTemporaryFile
+from argparse import Namespace
 
 from faster_whisper import WhisperModel
 import soundcard as sc
@@ -20,6 +21,7 @@ SAMPLE_RATE = 48000
 
 class AudioAPI:
     config = Config
+    args = Namespace
     audio_model: WhisperModel
 
     # translator for removing punctuation
@@ -39,12 +41,16 @@ class AudioAPI:
     transcription_queue1 = Queue()
     transcription_queue2 = Queue()
 
-    def __init__(self, config: Config):
+    def __init__(self, args: Namespace, config: Config):
         print("Initializing Audio API...")
         self.config = config
-
+        self.args = args
+        
         # Load the model.
-        self.audio_model = WhisperModel("medium.en", device="cuda", compute_type="float16")
+        if (args.lite):
+            self.audio_model = WhisperModel("base.en", device="cpu", compute_type="int8")
+        else:
+            self.audio_model = WhisperModel("medium.en", device="cuda", compute_type="float16")
 
         print("Audio API Initialized.")
 

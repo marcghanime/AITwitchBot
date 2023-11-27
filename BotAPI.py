@@ -2,6 +2,7 @@ import time
 import threading
 import queue
 import random
+from argparse import Namespace
 
 from TwitchAPI import TwitchAPI
 from ChatAPI import ChatAPI
@@ -14,6 +15,7 @@ from typing import List
 
 class BotAPI:
     config: Config
+    args: Namespace
     memory: Memory
     twitch_api: TwitchAPI
     chat_api: ChatAPI
@@ -34,15 +36,13 @@ class BotAPI:
     ignored_message_threshold: int = 75
     length_message_threshold: int = 50
 
-    TESTING: bool = False
-
-    def __init__(self, config: Config, memory: Memory, audio_api: AudioAPI, twitch_api: TwitchAPI, chat_api: ChatAPI, testing: bool):
+    def __init__(self, args: Namespace, config: Config, memory: Memory, audio_api: AudioAPI, twitch_api: TwitchAPI, chat_api: ChatAPI):
         self.config = config
+        self.args = args
         self.memory = memory
         self.twitch_api = twitch_api
         self.chat_api = chat_api
         self.audio_api = audio_api
-        self.TESTING = testing
 
         # Setup
         self.message_queue = self.twitch_api.get_message_queue()
@@ -123,7 +123,7 @@ class BotAPI:
 
     # Check if moderation allows the bot to respond
     def moderation(self, username: str) -> bool:
-        if self.TESTING:
+        if self.args.testing:
             return False
         if username in self.memory.banned_users:
             return False
@@ -278,7 +278,7 @@ class BotAPI:
         elif input.startswith("test-msg ") and admin:
             username = "testuser"
             message = input.split(" ", 1)[1]
-            if self.TESTING:
+            if self.args.testing:
                 self.send_response(username, message)
 
         # add-det-word <word> - adds a word to the detection words
@@ -288,12 +288,12 @@ class BotAPI:
 
         # send-intro - sends the intro message
         elif input == ("intro") and admin:
-            if not self.TESTING:
+            if not self.args.testing:
                 self.send_intro()
 
         # react - manually trigger a reaction
         elif input == ("react") and admin:
-            if not self.TESTING:
+            if not self.args.testing:
                 self.send_response(self.config.target_channel, self.react_string, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)
         

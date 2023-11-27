@@ -69,7 +69,7 @@ class BotAPI:
 
     # Setup constant strings
     def setup_strings(self):
-        self.command_help = f"Must be {self.config.target_channel} or a Mod. Usage: !{self.config.bot_username} [command] in chat || timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
+        self.command_help = f"Must be {self.config.target_channel} or a Mod. Commands: timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
         self.react_string = f"repond or react to the last thing {self.config.target_channel} said based only on the provided live captions and the image for context."
 
     # Thread to process messages received from the Twitch API
@@ -84,14 +84,7 @@ class BotAPI:
             username = entry.user.name
             message = entry.text
 
-            if message.lower().startswith(f"!{self.config.bot_username.lower()}"):
-                if entry.user.mod or entry.user.name == self.config.target_channel.lower():
-                    if message.lower() == f"!{self.config.bot_username.lower()}":
-                        self.twitch_api.send_message(self.command_help)
-                    else:
-                        self.handle_commands(message)
-
-            elif self.mentioned(username, message) and self.moderation(username):
+            if self.mentioned(username, message) and self.moderation(username):
                 self.send_response(username, message)
                 if self.memory.slow_mode_seconds > 0:
                     time.sleep(self.memory.slow_mode_seconds)
@@ -115,10 +108,9 @@ class BotAPI:
                 entry = self.whisper_queue.get(timeout=2.5)
             except queue.Empty:
                 continue
-        
-            print(f"received whisper: {entry.message}")
-            if entry.user.mod or entry.user.name == self.config.target_channel.lower() or entry.user.name == self.config.admin_username.lower():
-                self.handle_commands(entry.message, False)
+            isAdmin = entry.user.name == self.config.admin_username.lower()
+            if entry.user.mod or entry.user.name == self.config.target_channel.lower() or isAdmin:
+                self.handle_commands(entry, isAdmin)
             
 
     # Send the intro message
@@ -211,9 +203,9 @@ class BotAPI:
 
 
     # Handles commands sent to the bot
-    def handle_commands(self, input: str, external: bool = True) -> None:
-        input = input.lower().replace(f"!{self.config.bot_username.lower()} ", "").replace(
-            f"!{self.config.bot_username.lower()}", "")
+    def handle_commands(self, whisper: WhisperEvent, admin: bool = False) -> None:
+        command_not_found: bool = False
+        input: str = whisper.message
 
         # reset <username> - clears the conversation memory with the given username
         if input.startswith("reset "):
@@ -270,37 +262,48 @@ class BotAPI:
             self.twitch_api.send_message(f"'{word}' removed from banned words.")
 
         # op <message> - sends a message as the operator
-        elif input.startswith("op ") and not external:
+        elif input.startswith("op ") and admin:
             message: str = input.split(" ", 1)[1]
             self.twitch_api.send_message(f"(operator): {message}")
 
         # set-imt <number> - sets the ignored message threshold
-        elif input.startswith("set-emt ") and not external:
+        elif input.startswith("set-emt ") and admin:
             self.ignored_message_threshold = int(input.split(" ")[1])
 
         # set-lmt <number> - sets the length message threshold
-        elif input.startswith("set-elmt ") and not external:
+        elif input.startswith("set-elmt ") and admin:
             self.length_message_threshold = int(input.split(" ")[1])
 
         # test-msg <message> - sends a message as the test user
-        elif input.startswith("test-msg ") and not external:
+        elif input.startswith("test-msg ") and admin:
             username = "testuser"
             message = input.split(" ", 1)[1]
             if self.TESTING:
                 self.send_response(username, message)
 
         # add-det-word <word> - adds a word to the detection words
-        elif input.startswith("add-det-word ") and not external:
+        elif input.startswith("add-det-word ") and admin:
             word = input.split(" ", 1)[1]
             self.config.detection_words.append(word)
 
         # send-intro - sends the intro message
-        elif input == ("intro") and not external:
+        elif input == ("intro") and admin:
             if not self.TESTING:
                 self.send_intro()
 
         # react - manually trigger a reaction
-        elif input == ("react") and not external:
+        elif input == ("react") and admin:
             if not self.TESTING:
                 self.send_response(self.config.target_channel, self.react_string, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)
+        
+        # command not found
+        else:
+            command_not_found = True
+
+        # Respond to whisper
+        if command_not_found:
+            self.twitch_api.send_whisper(whisper.user, f"Command not found!")
+            self.twitch_api.send_whisper(whisper.user, self.command_help)
+        else:
+            self.twitch_api.send_whisper(whisper.user, f"Command executed!")

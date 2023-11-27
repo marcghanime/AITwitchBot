@@ -146,7 +146,6 @@ class AudioAPI:
 
     # we need to do this since we keep the last second of the last recording in the new recording
     # this leeds to better results since the last word is not cut off
-
     def remove_overlap(self, first_string: str, second_string: str) -> str:
         overlap = None
 
@@ -181,9 +180,10 @@ class AudioAPI:
                 first_string = " ".join(splitted_first_string).strip()
                 break
 
-        # if no overlap and the last word isn't in second_string, add it back to first_string
-        read_last_word = len(splitted_second_string) > 0 and splitted_second_string[0] != last_word
-        if overlap is None and read_last_word:
+        # first word of the second string
+        first_word = "" if len(splitted_second_string) == 0 else splitted_second_string[0]
+        # if no overlap add it back the last word to first_string
+        if last_word != first_word:
             first_string = f"{first_string} {last_word}"
 
         # remove trailing and starting whitespaces

@@ -89,7 +89,7 @@ class BotAPI:
                 if self.memory.slow_mode_seconds > 0:
                     time.sleep(self.memory.slow_mode_seconds)
 
-            elif self.react() and self.moderation(""):
+            elif self.react() and self.moderation():
                 self.send_response(self.config.target_channel, self.react_string, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
 
@@ -122,7 +122,7 @@ class BotAPI:
         return self.message_count
 
     # Check if moderation allows the bot to respond
-    def moderation(self, username: str) -> bool:
+    def moderation(self, username: str = "") -> bool:
         if self.args.testing:
             return False
         if username in self.memory.banned_users:

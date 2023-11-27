@@ -2,7 +2,7 @@ import queue
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from twitchAPI.twitch import Twitch
+from twitchAPI.twitch import Twitch, TwitchUser
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException, ChatEvent
 from twitchAPI.chat import Chat, ChatMessage, WhisperEvent
@@ -18,6 +18,7 @@ class TwitchAPI:
     message_queue: queue.Queue[ChatMessage]
     whisper_queue: queue.Queue[WhisperEvent]
     chat_history = []
+    bot_user: TwitchUser
 
     TESTING: bool = False
 
@@ -50,6 +51,9 @@ class TwitchAPI:
 
     # Initialize the chat bot
     async def init_chat(self):
+        # Get bot user
+        self.bot_user = await first(self.twitch.get_users(logins=[self.config.bot_username]))
+
         # Create chat instance
         self.chat = await Chat(self.twitch)
 
@@ -95,6 +99,12 @@ class TwitchAPI:
                 pool.submit(lambda:asyncio.run(self.chat.send_message(self.config.target_channel, message)))
 
 
+    # Send whisper to user
+    def send_whisper(self, user: TwitchUser, message: str):
+        with ThreadPoolExecutor() as pool:
+            pool.submit(lambda:asyncio.run(self.twitch.send_whisper(self.bot_user.id, user.id, message)))
+
+
     # Get stream information
     async def get_stream_info(self):
         # Get channel
@@ -117,7 +127,7 @@ class TwitchAPI:
         refresh_token: str = self.config.twitch_user_refresh_token
 
         # Set scope
-        scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT, AuthScope.WHISPERS_READ, AuthScope.WHISPERS_EDIT]
+        scope = [AuthScope.CHAT_READ, AuthScope.CHAT_EDIT, AuthScope.WHISPERS_READ, AuthScope.WHISPERS_EDIT, AuthScope.USER_MANAGE_WHISPERS]
 
         # Check if refresh is needed
         try:

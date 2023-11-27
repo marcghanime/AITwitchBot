@@ -1,10 +1,11 @@
 # TwitchBot
 
 ## :warning: Warning
-I only tested this on windows so I don't know if it works on other operating systems. **But it should**.
+- I only tested this on windows so I don't know if it works on other operating systems. **But it should**.
+- The twitch account for the bot needs to have a verified phone number to be able to send whispers.
 
 ## Requirements
-- Python 3.9+ [Download](https://www.python.org/downloads/)
+- Python 3.10+ [Download](https://www.python.org/downloads/)
 
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
@@ -12,8 +13,12 @@ I only tested this on windows so I don't know if it works on other operating sys
 3. Fill out the config file. See [Config File](#config-file) for detailed info.
 
 ## Running
-1. Run `python main.py`
-- To input a [command](#commands) just start typing in the console and press enter.
+1. Run `python main.py [*args*]`
+- To input a [command](#commands) send a whisper to the bot through twitch.
+
+## Args
+- `--lite` - Runs the bot with minimum performance
+- `--testing` - Runs the bot in testing mode (disables some actions)
 
 ## TODO
 - [ ] Add 7tv emote support
@@ -50,4 +55,6 @@ The following commands are only available to the **admin**:
 + **set-elmt [*count*]** - sets the minimum length of the message the bot will engage with when EMT is reached
 + **test-msg [*message*]** - sends a message to the OpenAI model to test the response
 + **intro** - sends the intro message to chat
++ **add-det-word [*word*]** - adds word to the list of verbal mention keywords
++ **react** - trigger a reaction from the bot
 + **exit** - exits the script

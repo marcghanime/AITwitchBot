@@ -228,7 +228,7 @@ class BotAPI:
                 self.twitch_api.send_message(f"{username} will no longer be ignored.")
 
         # timeout <username> <duration in seconds> - times out the bot for the given user
-        elif input.startswith("timout "):
+        elif input.startswith("timeout "):
             username: str = input.split(" ")[1]
             duration: int = int(input.split(" ")[2])
             out_time: float = time.time() + int(duration)

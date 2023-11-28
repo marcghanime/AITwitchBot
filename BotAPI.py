@@ -23,6 +23,15 @@ BOT_FUNCTIONS = [
             "properties": {},
             "required": [],
         } 
+    },
+    {
+        "name": "ignore_user",
+        "description": "Stop responding or ignore the user if they request it",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        } 
     }
 ]
 
@@ -233,6 +242,10 @@ class BotAPI:
         if function_name == "recognize_song":
             self.twitch_api.send_message(f"@{username} I'm listening... give me ~10 seconds") 
             return self.recognize_song()
+        
+        elif function_name == "ignore_user":
+            self.memory.banned_users.append(username)
+            return "I'll ignore you from now on"
         
         return "Error"
     

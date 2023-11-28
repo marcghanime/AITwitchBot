@@ -7,11 +7,24 @@ from argparse import Namespace
 from TwitchAPI import TwitchAPI
 from ChatAPI import ChatAPI
 from AudioAPI import AudioAPI
+from ShazamAPI import ShazamAPI
 from models import Config, Memory
+from utils import check_banned_words
 
 from twitchAPI.chat import ChatMessage, WhisperEvent
 from typing import List
 
+BOT_FUNCTIONS = [
+    {
+        "name": "recognize_song",
+        "description": "Recognize/identify/detect the song currently playing in the stream",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        } 
+    }
+]
 
 class BotAPI:
     config: Config
@@ -20,6 +33,7 @@ class BotAPI:
     twitch_api: TwitchAPI
     chat_api: ChatAPI
     audio_api: AudioAPI
+    shazam_api: ShazamAPI
 
     # Thread variables
     thread: threading.Thread
@@ -43,11 +57,17 @@ class BotAPI:
         self.twitch_api = twitch_api
         self.chat_api = chat_api
         self.audio_api = audio_api
+        self.shazam_api = ShazamAPI(config)
 
-        # Setup
+        # Setup queues
         self.message_queue = self.twitch_api.get_message_queue()
         self.whisper_queue = self.twitch_api.get_whisper_queue()   
-        self.audio_api.set_verbal_mention_callback(self.mentioned_verbally)     
+
+        # Set callbacks
+        self.audio_api.set_verbal_mention_callback(self.mentioned_verbally)   
+        self.chat_api.set_bot_functions_callback(self.bot_functions_callback, bot_functions=BOT_FUNCTIONS) 
+
+        # Setup strings 
         self.setup_strings()
     
     # Start the bot
@@ -150,29 +170,35 @@ class BotAPI:
     # Send a response to the chat
     def send_response(self, username: str, message: str, react: bool = False, respond: bool = False):
         bot_response = None
-
-        if react:
-            ai_response = self.chat_api.get_response_AI(
+        
+        # Check if the message contains any banned words
+        found = check_banned_words(message, self.memory.banned_words)
+        if found:
+            bot_response = f"@{username} Ignored message containing banned word: '{found}'"
+        
+        elif react:
+            ai_response = self.chat_api.get_ai_response(
                 username, message, no_twitch_chat=True)
             if ai_response:
                 bot_response = f"{ai_response}"
                 self.chat_api.clear_user_conversation(username)
 
         elif respond:
-            ai_response = self.chat_api.get_response_AI(
+            ai_response = self.chat_api.get_ai_response(
                 username, message, no_audio_context=True)
             if ai_response:
                 bot_response = f"@{username} {ai_response}"
                 self.chat_api.clear_user_conversation(username)
 
         else:
-            ai_response = self.chat_api.get_response_AI(username, message)
+            ai_response = self.chat_api.get_ai_response(username, message)
             if ai_response:
                 bot_response = f"@{username} {ai_response}"
 
         if bot_response:
             self.twitch_api.send_message(bot_response)
             self.message_count = 0
+
 
     # Callback for when the bot is mentioned verbally
     def mentioned_verbally(self, audio_transcription: List[str]):
@@ -201,6 +227,29 @@ class BotAPI:
             message = f"{self.config.target_channel} talked to/about you ({self.config.bot_username}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_username})"
             self.send_response(self.config.target_channel, message, respond=True)
 
+
+    # Callback for when the ai calls a function
+    def bot_functions_callback(self, function_name: str, username: str) -> str:
+        if function_name == "recognize_song":
+            self.twitch_api.send_message(f"@{username} I'm listening... give me ~10 seconds") 
+            return self.recognize_song()
+        
+        return "Error"
+    
+
+    # Recognize the song currently playing in the stream
+    def recognize_song(self):
+        # Get the result from the shazam API
+        result = self.shazam_api.detect_song()
+
+        # Check if the request was successful
+        if result == "Error":
+            return "I encountered an error while trying to detect the song"
+        elif result == "No matches found":
+            return "I couldn't recognize the song"
+        else:
+            return f"I think the song playing is {result}"
+        
 
     # Handles commands sent to the bot
     def handle_commands(self, whisper: WhisperEvent, admin: bool = False) -> None:

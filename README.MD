@@ -22,7 +22,6 @@
 
 ## TODO
 - [ ] Add 7tv emote support
-- [ ] Fetch the current playing song from spotify
 
 ## Config File
 - `must fill` **target_channel** - The channel the bot will join
@@ -35,6 +34,7 @@
 - `must fill` **openai_api_key** - The openai api key - [Get it here](https://platform.openai.com/account/api-keys)
 - `has a default value` **openai_api_max_tokens_total** - The max tokens for a single request
 - `has a default value` **openai_api_max_tokens_response** - The max tokens for a single response
+- `must fill` **shazam_api_key** - The shazam api key - [Get it here](https://rapidapi.com/apidojo/api/shazam)
 - `must fill` **prompt_extras** - Extra streamer specific info to be added to the prompt (e.g. the streamers nicknames, age, hobbies, the about section, the art section, etc.)
 - `automatically filled` **detection_words** - The 'verbal' words that will trigger the bot to respond
 

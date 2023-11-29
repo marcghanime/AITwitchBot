@@ -45,7 +45,7 @@ class ChatAPI:
         self.memory = memory
         self.args = args
 
-        self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
+        self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
         self.prompt += self.config.prompt_extras
 
 
@@ -99,7 +99,7 @@ class ChatAPI:
     # Handle a function call from the AI
     def handle_function_call(self, function_name: str, username: str, message: str) -> str:
         if function_name == "image_input":
-            return self.image_input(username, message)
+            return self.get_ai_response_with_image(username, message)
         else:
             return self.bot_function_callback(function_name, username)
 
@@ -189,7 +189,8 @@ class ChatAPI:
             username: str,
             message: str,
             no_twitch_chat: bool = False,
-            no_audio_context: bool = False):
+            no_audio_context: bool = False,
+            with_image: bool = False):
         
         # Initialize the conversation if it doesn't exist
         if username not in self.memory.conversations:
@@ -201,10 +202,35 @@ class ChatAPI:
 
         # Add the message to the conversation
         message = f"{username}: {message}"
-        self.memory.conversations[username].append({
-            "role": "user",
-            "content": message
-        })
+
+        if with_image:
+            # Get a base64 screenshot of the stream
+            base64_image = self.image_api.get_base64_screenshot()
+
+            # Add the message to the conversation with the image
+            self.memory.conversations[username].append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": message
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}",
+                            "detail": "low"
+                        }
+                    }
+                ]
+            })
+        
+        else:
+            # Add the message to the conversation
+            self.memory.conversations[username].append({
+                "role": "user",
+                "content": message
+            })
 
         # Update the system prompt
         self.update_prompt(username, no_twitch_chat, no_audio_context)
@@ -241,31 +267,10 @@ class ChatAPI:
 
 
     # Use a screenshot of the stream to get more context/information on what is shown/happening
-    def image_input(self, username: str, message: str):
-
-        # Get a base64 screenshot of the stream
-        base64_image = self.image_api.get_base64_screenshot()
-
+    def get_ai_response_with_image(self, username: str, message: str):
+        
         # Add the user message to the conversation
-        message = f"{username}: {message}"
-
-        # Add the message to the conversation with the image
-        self.memory.conversations[username].append({
-            "role": "user",
-            "content": [
-                {
-                    "type": "text",
-                    "text": message
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}",
-                        "detail": "low"
-                    }
-                }
-            ]
-        })
+        self.add_user_message(username, message, with_image=True)
 
         # Get a response from the AI
         response = self.openai_api.chat.completions.create(

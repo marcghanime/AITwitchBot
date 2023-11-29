@@ -26,7 +26,7 @@ BOT_FUNCTIONS = [
     },
     {
         "name": "ignore_user",
-        "description": "Stop responding or ignore the user if they request it",
+        "description": "Stop responding or ignore the user when explicitly requested",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -112,6 +112,10 @@ class BotAPI:
 
             username = entry.user.name
             message = entry.text
+            
+            # ignore short messages
+            if len(message.split(" ")) <= 3:
+                continue
 
             if self.mentioned(username, message) and self.moderation(username):
                 self.send_response(username, message)
@@ -186,8 +190,7 @@ class BotAPI:
             bot_response = f"@{username} Ignored message containing banned word: '{found}'"
         
         elif react:
-            ai_response = self.chat_api.get_ai_response(
-                username, message, no_twitch_chat=True)
+            ai_response = self.chat_api.get_ai_response_with_image(username, message)
             if ai_response:
                 bot_response = f"{ai_response}"
                 self.chat_api.clear_user_conversation(username)
@@ -284,7 +287,7 @@ class BotAPI:
 
         # unban <username> - unbans the user
         elif input.startswith("unban "):
-            username: str = input.split(" ")[1]
+            username: str = input.split(" ")[1].lower()
             if username in self.memory.banned_users:
                 self.memory.banned_users.remove(username)
                 self.twitch_api.send_message(f"{username} will no longer be ignored.")

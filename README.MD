@@ -24,6 +24,7 @@
 
 ## Config File
 | Entry | Type | Description |
+| --- | --- |
 | **target_channel** | `must fill` | The channel the bot will join |
 | **bot_username** | `must fill` | The bots username |
 | **admin_username** | `optional` | The username of the person running the bot (used for admin commands) |

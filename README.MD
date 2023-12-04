@@ -25,19 +25,19 @@
 ## Config File
 | Entry | Type | Description |
 | --- | --- | --- |
-| **target_channel** | `must fill` | The channel the bot will join |
-| **bot_username** | `must fill` | The bots username |
-| **admin_username** | `optional` | The username of the person running the bot (used for admin commands) |
-| **twitch_api_client_id** | `must fill` | The client id for the twitch api [Get it here](https://dev.twitch.tv/console/apps) |
-| **twitch_api_client_secret** | `must fill` | The client secret for the twitch api [Get it here](https://dev.twitch.tv/console/apps) |
-| **twitch_user_token** | `automatically filled` | The oauth token for the twitch user |
-| **twitch_user_refresh_token** | `automatically filled` | The refresh token for the twitch user |
-| **openai_api_key** | `must fill` | The openai api key [Get it here](https://platform.openai.com/account/api-keys) |
-| **openai_api_max_tokens_total** | `has a default value` | The max tokens for a single request |
-| **openai_api_max_tokens_response** | `has a default value` | The max tokens for a single response |
-| **shazam_api_key** | `must fill` | The shazam api key [Get it here](https://rapidapi.com/apidojo/api/shazam) |
-| **prompt_extras** | `optional` | Extra streamer specific info to be added to the prompt (e.g. the streamers nicknames, age, hobbies, etc.) |
-| **detection_words** | `automatically filled` | The 'verbal' words that will trigger the bot to respond |
+| **target_channel** | must fill | The channel the bot will join |
+| **bot_username** | must fill | The bots username |
+| **admin_username** | optional | The username of the person running the bot (used for admin commands) |
+| **twitch_api_client_id** | must fill | The client id for the twitch api [Get it here](https://dev.twitch.tv/console/apps) |
+| **twitch_api_client_secret** | must fill | The client secret for the twitch api [Get it here](https://dev.twitch.tv/console/apps) |
+| **twitch_user_token** | automatically filled | The oauth token for the twitch user |
+| **twitch_user_refresh_token** | automatically filled | The refresh token for the twitch user |
+| **openai_api_key** | must fill | The openai api key [Get it here](https://platform.openai.com/account/api-keys) |
+| **openai_api_max_tokens_total** | has a default value | The max tokens for a single request |
+| **openai_api_max_tokens_response** | has a default value | The max tokens for a single response |
+| **shazam_api_key** | must fill | The shazam api key [Get it here](https://rapidapi.com/apidojo/api/shazam) |
+| **prompt_extras** | optional | Extra streamer specific info to be added to the prompt (e.g. the streamers nicknames, age, hobbies, etc.) |
+| **detection_words** | automatically filled | The 'verbal' words that will trigger the bot to respond |
 
 ## Commands 
 The following commands are available to **admin**, **streamer** and **mods** via !{bot_username} :

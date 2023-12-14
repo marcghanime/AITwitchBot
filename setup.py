@@ -2,7 +2,7 @@ import json
 import dataclasses
 import argparse
 
-from faster_whisper import WhisperModel
+import whisper
 
 from models import Config
 
@@ -15,9 +15,9 @@ def main():
     print("checking/downloading whisper model...")
     
     if args.lite:
-        WhisperModel("base.en", device="cpu", compute_type="int8")
+        whisper.load_model("base.en")
     else:
-        WhisperModel("medium.en", device="cuda", compute_type="float16")
+        whisper.load_model("medium.en")
 
     try:
         with open("config.json", "r", encoding='utf-8'):

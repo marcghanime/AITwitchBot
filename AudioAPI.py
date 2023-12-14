@@ -7,7 +7,7 @@ from queue import Queue, Empty
 from tempfile import NamedTemporaryFile
 from argparse import Namespace
 
-from faster_whisper import WhisperModel
+import whisper
 import soundcard as sc
 import soundfile as sf
 import numpy as np
@@ -22,7 +22,7 @@ SAMPLE_RATE = 48000
 class AudioAPI:
     config = Config
     args = Namespace
-    audio_model: WhisperModel
+    audio_model: whisper.Whisper
 
     # translator for removing punctuation
     no_punctuation = str.maketrans('', '', string.punctuation)
@@ -48,9 +48,9 @@ class AudioAPI:
         
         # Load the model.
         if (args.lite):
-            self.audio_model = WhisperModel("base.en", device="cpu", compute_type="int8")
+            self.audio_model = whisper.load_model("base.en")
         else:
-            self.audio_model = WhisperModel("medium.en", device="cuda", compute_type="float16")
+            self.audio_model = whisper.load_model("medium.en")
 
         print("Audio API Initialized.")
 
@@ -124,11 +124,10 @@ class AudioAPI:
             sf.write(file=temp_file, data=sample, samplerate=SAMPLE_RATE)
 
             # Transcribe the audio data.
-            text = ""
-            segments, _ = self.audio_model.transcribe(
+            result = self.audio_model.transcribe(
                 temp_file, without_timestamps=True)
-            for segment in segments:
-                text += segment.text
+            
+            text = result["text"]
 
             # TODO add seperate function for censoring
             text = text.replace("fuck", "f***").replace("Fuck", "F***")

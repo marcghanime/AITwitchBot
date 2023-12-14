@@ -6,7 +6,7 @@ from argparse import Namespace
 import tiktoken
 from openai import OpenAI
 
-from TwitchAPI import TwitchAPI
+from TwitchAPI import TwitchAPI, ChatMessage
 from AudioAPI import AudioAPI
 from ImageAPI import ImageAPI
 from models import Memory, Config
@@ -21,7 +21,7 @@ class ChatAPI:
     audio_api: AudioAPI
     image_api: ImageAPI
     prompt: str
-    bot_function_callback: Callable[[[str, str]], str]
+    bot_function_callback: Callable[[[str, ChatMessage]], str]
 
     # Define the functions that the AI can call
     functions = [
@@ -50,10 +50,11 @@ class ChatAPI:
 
 
     # Get a response from the AI
-    def get_ai_response(self, username: str, message: str, no_twitch_chat: bool = False, no_audio_context: bool = False):
+    def get_ai_response(self, chat_message: ChatMessage, no_twitch_chat: bool = False, no_audio_context: bool = False):
+        username = chat_message.user.name
 
         # Add the user message to the conversation
-        self.add_user_message(username, message, no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
+        self.add_user_message(chat_message, no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
 
         try:
             # Get a response from the AI
@@ -69,7 +70,7 @@ class ChatAPI:
 
             # Check if the response contains a function call
             if choice.message.function_call:
-                response_text = self.handle_function_call(choice.message.function_call.name, username, message)
+                response_text = self.handle_function_call(choice.message.function_call.name, chat_message)
 
             # Check if the response contains a message
             elif choice.message.content:
@@ -89,7 +90,7 @@ class ChatAPI:
 
 
     # Set the callback function for bot functions
-    def set_bot_functions_callback(self, callback: Callable[[[str, str]], str], bot_functions):
+    def set_bot_functions_callback(self, callback: Callable[[[str, ChatMessage]], str], bot_functions):
         # Append the bot functions to the list of functions
         self.functions.extend(bot_functions)
         # Set the callback function
@@ -97,11 +98,11 @@ class ChatAPI:
 
 
     # Handle a function call from the AI
-    def handle_function_call(self, function_name: str, username: str, message: str) -> str:
+    def handle_function_call(self, function_name: str, chat_message: ChatMessage) -> str:
         if function_name == "image_input":
-            return self.get_ai_response_with_image(username, message)
+            return self.get_ai_response_with_image(chat_message)
         else:
-            return self.bot_function_callback(function_name, username)
+            return self.bot_function_callback(function_name, chat_message)
 
 
     # Log an error to the logs.json file
@@ -186,12 +187,15 @@ class ChatAPI:
     # Add the user message to the conversation
     def add_user_message(
             self,
-            username: str,
-            message: str,
+            chat_message: ChatMessage,
             no_twitch_chat: bool = False,
             no_audio_context: bool = False,
             with_image: bool = False):
         
+        # Get the message information
+        username = chat_message.user.name
+        message = chat_message.text
+
         # Initialize the conversation if it doesn't exist
         if username not in self.memory.conversations:
             self.init_conversation(username)
@@ -267,15 +271,15 @@ class ChatAPI:
 
 
     # Use a screenshot of the stream to get more context/information on what is shown/happening
-    def get_ai_response_with_image(self, username: str, message: str):
+    def get_ai_response_with_image(self, chat_message: ChatMessage):
         
         # Add the user message to the conversation
-        self.add_user_message(username, message, with_image=True)
+        self.add_user_message(chat_message, with_image=True)
 
         # Get a response from the AI
         response = self.openai_api.chat.completions.create(
             model="gpt-4-vision-preview",
-            messages=self.memory.conversations[username],
+            messages=self.memory.conversations[chat_message.user.name],
             max_tokens=self.config.openai_api_max_tokens_response
         )
 

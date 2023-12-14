@@ -11,7 +11,7 @@ from ShazamAPI import ShazamAPI
 from models import Config, Memory
 from utils import check_banned_words
 
-from twitchAPI.chat import ChatMessage, WhisperEvent
+from twitchAPI.chat import ChatMessage, WhisperEvent, ChatUser
 from typing import List
 
 BOT_FUNCTIONS = [
@@ -134,6 +134,7 @@ class BotAPI:
             else:
                 self.message_count += 1
 
+    # Thread to process whispers received from the Twitch API
     def process_whispers(self):
         while not self.stop_event.is_set():
             # get the next whisper from the queue (this will block until a whisper is available or 2.5 seconds have passed)
@@ -141,16 +142,20 @@ class BotAPI:
                 entry = self.whisper_queue.get(timeout=2.5)
             except queue.Empty:
                 continue
-            isAdmin = entry.user.name == self.config.admin_username.lower()
-            if entry.user.mod or entry.user.name == self.config.target_channel.lower() or isAdmin:
-                self.handle_commands(entry, isAdmin)
-            
+
+            if self.has_priviege(entry.user):
+                self.handle_commands(entry)
+
+    # Check if the user has the privilege to use special commands
+    def has_priviege(self, user: ChatUser) -> bool:
+        return user.mod or user.name == self.config.target_channel.lower() or user.name == self.config.admin_username.lower()    
 
     # Send the intro message
     def send_intro(self):
         intro_message = f"Hi, I'm back <3 for mod commands checkout my channel pannels or whisper me."
         self.twitch_api.send_message(intro_message)
 
+    # Get the message count
     def get_message_count(self):
         return self.message_count
 
@@ -181,8 +186,10 @@ class BotAPI:
         return time.time() > self.memory.reaction_time
 
     # Send a response to the chat
-    def send_response(self, username: str, message: str, react: bool = False, respond: bool = False):
+    def send_response(self, chat_message: ChatMessage, react: bool = False, respond: bool = False):
         bot_response = None
+        username = chat_message.user.name
+        message = chat_message.text
         
         # Check if the message contains any banned words
         found = check_banned_words(message, self.memory.banned_words)
@@ -190,20 +197,20 @@ class BotAPI:
             bot_response = f"@{username} Ignored message containing banned word: '{found}'"
         
         elif react:
-            ai_response = self.chat_api.get_ai_response_with_image(username, message)
+            ai_response = self.chat_api.get_ai_response_with_image(chat_message)
             if ai_response:
                 bot_response = f"{ai_response}"
                 self.chat_api.clear_user_conversation(username)
 
         elif respond:
             ai_response = self.chat_api.get_ai_response(
-                username, message, no_audio_context=True)
+                chat_message, no_audio_context=True)
             if ai_response:
                 bot_response = f"@{username} {ai_response}"
                 self.chat_api.clear_user_conversation(username)
 
         else:
-            ai_response = self.chat_api.get_ai_response(username, message)
+            ai_response = self.chat_api.get_ai_response(chat_message)
             if ai_response:
                 bot_response = f"@{username} {ai_response}"
 
@@ -241,15 +248,15 @@ class BotAPI:
 
 
     # Callback for when the ai calls a function
-    def bot_functions_callback(self, function_name: str, username: str) -> str:
+    def bot_functions_callback(self, function_name: str, chat_message: ChatMessage) -> str:
         if function_name == "recognize_song":
-            self.twitch_api.send_message(f"@{username} I'm listening... give me ~10 seconds") 
+            self.twitch_api.send_message(f"@{chat_message.user.name} I'm listening... give me ~10 seconds") 
             return self.recognize_song()
         
         elif function_name == "ignore_user":
-            self.memory.banned_users.append(username)
+            self.memory.banned_users.append(chat_message.user.name)
             return "I'll ignore you from now on"
-        
+                
         return "Error"
     
 
@@ -268,7 +275,7 @@ class BotAPI:
         
 
     # Handles commands sent to the bot
-    def handle_commands(self, whisper: WhisperEvent, admin: bool = False) -> None:
+    def handle_commands(self, whisper: WhisperEvent) -> None:
         command_not_found: bool = False
         input: str = whisper.message
 
@@ -327,37 +334,37 @@ class BotAPI:
             self.twitch_api.send_message(f"'{word}' removed from banned words.")
 
         # op <message> - sends a message as the operator
-        elif input.startswith("op ") and admin:
+        elif input.startswith("op "):
             message: str = input.split(" ", 1)[1]
             self.twitch_api.send_message(f"(operator): {message}")
 
         # set-imt <number> - sets the ignored message threshold
-        elif input.startswith("set-emt ") and admin:
+        elif input.startswith("set-emt "):
             self.ignored_message_threshold = int(input.split(" ")[1])
 
         # set-lmt <number> - sets the length message threshold
-        elif input.startswith("set-elmt ") and admin:
+        elif input.startswith("set-elmt "):
             self.length_message_threshold = int(input.split(" ")[1])
 
         # test-msg <message> - sends a message as the test user
-        elif input.startswith("test-msg ") and admin:
+        elif input.startswith("test-msg "):
             username = "testuser"
             message = input.split(" ", 1)[1]
             if self.args.testing:
                 self.send_response(username, message)
 
         # add-det-word <word> - adds a word to the detection words
-        elif input.startswith("add-det-word ") and admin:
+        elif input.startswith("add-det-word "):
             word = input.split(" ", 1)[1]
             self.config.detection_words.append(word)
 
         # send-intro - sends the intro message
-        elif input == ("intro") and admin:
+        elif input == ("intro"):
             if not self.args.testing:
                 self.send_intro()
 
         # react - manually trigger a reaction
-        elif input == ("react") and admin:
+        elif input == ("react"):
             if not self.args.testing:
                 self.send_response(self.config.target_channel, self.react_string, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)

@@ -17,7 +17,7 @@ def main():
     if args.lite:
         whisper.load_model("base.en")
     else:
-        whisper.load_model("medium.en")
+        whisper.load_model("large")
 
     try:
         with open("config.json", "r", encoding='utf-8'):

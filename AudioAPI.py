@@ -50,7 +50,7 @@ class AudioAPI:
         if (args.lite):
             self.audio_model = whisper.load_model("base.en")
         else:
-            self.audio_model = whisper.load_model("medium.en")
+            self.audio_model = whisper.load_model("large")
 
         print("Audio API Initialized.")
 

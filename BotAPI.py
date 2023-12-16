@@ -23,15 +23,6 @@ BOT_FUNCTIONS = [
             "properties": {},
             "required": [],
         } 
-    },
-    {
-        "name": "ignore_user",
-        "description": "Stop responding or ignore the user when explicitly requested",
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        } 
     }
 ]
 
@@ -58,6 +49,9 @@ class BotAPI:
     message_count: int = 0
     ignored_message_threshold: int = 75
     length_message_threshold: int = 50
+
+    # Dummy chat message
+    dummy_chat_message: ChatMessage = None
 
     def __init__(self, args: Namespace, config: Config, memory: Memory, audio_api: AudioAPI, twitch_api: TwitchAPI, chat_api: ChatAPI):
         self.config = config
@@ -106,28 +100,32 @@ class BotAPI:
         while not self.stop_event.is_set():
             # get the next message from the queue (this will block until a message is available or 2.5 seconds have passed)
             try:
-                entry = self.message_queue.get(timeout=2.5)
+                chat_message = self.message_queue.get(timeout=2.5)
+                if not self.dummy_chat_message:
+                    self.dummy_chat_message = chat_message
             except queue.Empty:
                 continue
 
-            username = entry.user.name
-            message = entry.text
+            username = chat_message.user.name
+            message = chat_message.text
             
             # ignore short messages
             if len(message.split(" ")) <= 3:
                 continue
 
             if self.mentioned(username, message) and self.moderation(username):
-                self.send_response(username, message)
+                self.send_response(chat_message)
                 if self.memory.slow_mode_seconds > 0:
                     time.sleep(self.memory.slow_mode_seconds)
 
             elif self.react() and self.moderation():
-                self.send_response(self.config.target_channel, self.react_string, react=True)
+                chat_message.text = self.react_string
+                self.send_response(chat_message, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
 
             elif self.engage(message) and self.moderation(username):
-                self.send_response(username, f"@{self.config.target_channel} {message}")
+                chat_message.text = f"@{self.config.target_channel} {message}"
+                self.send_response(chat_message)
                 if self.memory.slow_mode_seconds > 0:
                     time.sleep(self.memory.slow_mode_seconds)
 
@@ -244,8 +242,15 @@ class BotAPI:
             captions = " ".join(
                 audio_transcription[transctiption_index - 2: transctiption_index + 4])
             message = f"{self.config.target_channel} talked to/about you ({self.config.bot_username}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_username})"
-            self.send_response(self.config.target_channel, message, respond=True)
+            chat_message = self.create_dummy_chat_message(self.config.target_channel, message)
+            self.send_response(chat_message, respond=True)
 
+
+    def create_dummy_chat_message(self, username: str, message: str) -> ChatMessage:
+        dummy_chat_message = self.dummy_chat_message
+        dummy_chat_message.user.name = username
+        dummy_chat_message.text = message
+        return dummy_chat_message
 
     # Callback for when the ai calls a function
     def bot_functions_callback(self, function_name: str, chat_message: ChatMessage) -> str:
@@ -351,7 +356,8 @@ class BotAPI:
             username = "testuser"
             message = input.split(" ", 1)[1]
             if self.args.testing:
-                self.send_response(username, message)
+                chat_message = self.create_dummy_chat_message(username, message)
+                self.send_response(chat_message)
 
         # add-det-word <word> - adds a word to the detection words
         elif input.startswith("add-det-word "):
@@ -366,7 +372,8 @@ class BotAPI:
         # react - manually trigger a reaction
         elif input == ("react"):
             if not self.args.testing:
-                self.send_response(self.config.target_channel, self.react_string, react=True)
+                chat_message = self.create_dummy_chat_message(self.config.target_channel, self.react_string)
+                self.send_response(chat_message, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)
         
         # command not found

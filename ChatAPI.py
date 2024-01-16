@@ -6,10 +6,10 @@ from argparse import Namespace
 import tiktoken
 from openai import OpenAI
 
-from TwitchAPI import TwitchAPI, ChatMessage
+from TwitchAPI import TwitchAPI
 from AudioAPI import AudioAPI
 from ImageAPI import ImageAPI
-from models import Memory, Config
+from models import Memory, Config, Message
 from utils import clean_message, remove_image_messages
 
 class ChatAPI:
@@ -21,7 +21,7 @@ class ChatAPI:
     audio_api: AudioAPI
     image_api: ImageAPI
     prompt: str
-    bot_function_callback: Callable[[[str, ChatMessage]], str]
+    bot_function_callback: Callable[[[str, Message]], str]
 
     # Define the functions that the AI can call
     functions = [
@@ -50,8 +50,8 @@ class ChatAPI:
 
 
     # Get a response from the AI
-    def get_ai_response(self, chat_message: ChatMessage, no_twitch_chat: bool = False, no_audio_context: bool = False):
-        username = chat_message.user.name
+    def get_ai_response(self, chat_message: Message, no_twitch_chat: bool = False, no_audio_context: bool = False):
+        username = chat_message.username
 
         # Add the user message to the conversation
         self.add_user_message(chat_message, no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
@@ -90,7 +90,7 @@ class ChatAPI:
 
 
     # Set the callback function for bot functions
-    def set_bot_functions_callback(self, callback: Callable[[[str, ChatMessage]], str], bot_functions):
+    def set_bot_functions_callback(self, callback: Callable[[[str, Message]], str], bot_functions):
         # Append the bot functions to the list of functions
         self.functions.extend(bot_functions)
         # Set the callback function
@@ -98,7 +98,7 @@ class ChatAPI:
 
 
     # Handle a function call from the AI
-    def handle_function_call(self, function_name: str, chat_message: ChatMessage) -> str:
+    def handle_function_call(self, function_name: str, chat_message: Message) -> str:
         if function_name == "image_input":
             return self.get_ai_response_with_image(chat_message)
         else:
@@ -187,13 +187,13 @@ class ChatAPI:
     # Add the user message to the conversation
     def add_user_message(
             self,
-            chat_message: ChatMessage,
+            chat_message: Message,
             no_twitch_chat: bool = False,
             no_audio_context: bool = False,
             with_image: bool = False):
         
         # Get the message information
-        username = chat_message.user.name
+        username = chat_message.username
         message = chat_message.text
 
         # Initialize the conversation if it doesn't exist
@@ -271,7 +271,7 @@ class ChatAPI:
 
 
     # Use a screenshot of the stream to get more context/information on what is shown/happening
-    def get_ai_response_with_image(self, chat_message: ChatMessage):
+    def get_ai_response_with_image(self, chat_message: Message):
         
         # Add the user message to the conversation
         self.add_user_message(chat_message, with_image=True)
@@ -279,7 +279,7 @@ class ChatAPI:
         # Get a response from the AI
         response = self.openai_api.chat.completions.create(
             model="gpt-4-vision-preview",
-            messages=self.memory.conversations[chat_message.user.name],
+            messages=self.memory.conversations[chat_message.username],
             max_tokens=self.config.openai_api_max_tokens_response
         )
 

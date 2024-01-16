@@ -8,10 +8,10 @@ from TwitchAPI import TwitchAPI
 from ChatAPI import ChatAPI
 from AudioAPI import AudioAPI
 from ShazamAPI import ShazamAPI
-from models import Config, Memory
+from models import Config, Memory, Message
 from utils import check_banned_words
 
-from twitchAPI.chat import ChatMessage, WhisperEvent, ChatUser
+from twitchAPI.chat import WhisperEvent, ChatUser
 from typing import List
 
 BOT_FUNCTIONS = [
@@ -38,7 +38,7 @@ class BotAPI:
     # Thread variables
     thread: threading.Thread
     stop_event: threading.Event = threading.Event()
-    message_queue: queue.Queue[ChatMessage]
+    message_queue: queue.Queue[Message]
     whisper_queue: queue.Queue[WhisperEvent]
 
     # Strings
@@ -50,8 +50,6 @@ class BotAPI:
     ignored_message_threshold: int = 75
     length_message_threshold: int = 50
 
-    # Dummy chat message
-    dummy_chat_message: ChatMessage = None
 
     def __init__(self, args: Namespace, config: Config, memory: Memory, audio_api: AudioAPI, twitch_api: TwitchAPI, chat_api: ChatAPI):
         self.config = config
@@ -101,12 +99,10 @@ class BotAPI:
             # get the next message from the queue (this will block until a message is available or 2.5 seconds have passed)
             try:
                 chat_message = self.message_queue.get(timeout=2.5)
-                if not self.dummy_chat_message:
-                    self.dummy_chat_message = chat_message
             except queue.Empty:
                 continue
 
-            username = chat_message.user.name
+            username = chat_message.username
             message = chat_message.text
             
             # ignore short messages
@@ -184,9 +180,9 @@ class BotAPI:
         return time.time() > self.memory.reaction_time
 
     # Send a response to the chat
-    def send_response(self, chat_message: ChatMessage, react: bool = False, respond: bool = False):
+    def send_response(self, chat_message: Message, react: bool = False, respond: bool = False):
         bot_response = None
-        username = chat_message.user.name
+        username = chat_message.username
         message = chat_message.text
         
         # Check if the message contains any banned words
@@ -246,20 +242,14 @@ class BotAPI:
             self.send_response(chat_message, respond=True)
 
 
-    def create_dummy_chat_message(self, username: str, message: str) -> ChatMessage:
-        dummy_chat_message = self.dummy_chat_message
-        dummy_chat_message.user.name = username
-        dummy_chat_message.text = message
-        return dummy_chat_message
-
     # Callback for when the ai calls a function
-    def bot_functions_callback(self, function_name: str, chat_message: ChatMessage) -> str:
+    def bot_functions_callback(self, function_name: str, chat_message: Message) -> str:
         if function_name == "recognize_song":
-            self.twitch_api.send_message(f"@{chat_message.user.name} I'm listening... give me ~10 seconds") 
+            self.twitch_api.send_message(f"@{chat_message.username} I'm listening... give me ~10 seconds") 
             return self.recognize_song()
         
         elif function_name == "ignore_user":
-            self.memory.banned_users.append(chat_message.user.name)
+            self.memory.banned_users.append(chat_message.username)
             return "I'll ignore you from now on"
                 
         return "Error"
@@ -356,7 +346,7 @@ class BotAPI:
             username = "testuser"
             message = input.split(" ", 1)[1]
             if self.args.testing:
-                chat_message = self.create_dummy_chat_message(username, message)
+                chat_message = Message(username=username, text=message)
                 self.send_response(chat_message)
 
         # add-det-word <word> - adds a word to the detection words
@@ -372,7 +362,7 @@ class BotAPI:
         # react - manually trigger a reaction
         elif input == ("react"):
             if not self.args.testing:
-                chat_message = self.create_dummy_chat_message(self.config.target_channel, self.react_string)
+                chat_message = Message(username=self.config.target_channel, text=self.react_string)
                 self.send_response(chat_message, react=True)
                 self.memory.reaction_time = time.time() + random.randint(300, 600)
         

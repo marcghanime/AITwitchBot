@@ -9,7 +9,7 @@ from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshToken
 from twitchAPI.chat import Chat, ChatMessage, WhisperEvent
 from twitchAPI.helper import first
 
-from models import Config
+from models import Config, Message
 
 
 class TwitchAPI:
@@ -17,7 +17,7 @@ class TwitchAPI:
     args: Namespace
     twitch: Twitch
     chat: Chat
-    message_queue: queue.Queue[ChatMessage]
+    message_queue: queue.Queue[Message]
     whisper_queue: queue.Queue[WhisperEvent]
     chat_history = []
     bot_user: TwitchUser
@@ -81,8 +81,11 @@ class TwitchAPI:
         if len(self.chat_history) > 20:
             self.chat_history.pop(0)
 
+        # Create message object
+        chat_message = Message(msg.user.name, msg.text, msg.user.mod)
+
         # Add message to message queue
-        self.message_queue.put(msg)
+        self.message_queue.put(chat_message)
 
     async def on_whisper(self, whisper: WhisperEvent):
         self.whisper_queue.put(whisper)

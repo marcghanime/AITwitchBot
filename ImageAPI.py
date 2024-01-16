@@ -32,11 +32,18 @@ class ImageAPI:
         # Wait for the stream to load
         time.sleep(10)
 
-        # Get the body element
-        body = self.browser.find_element(by=By.TAG_NAME, value='body')
+        try:
+            # Get button by XPATH
+            button = self.browser.find_element(by=By.XPATH, value="//button[@data-a-target='content-classification-gate-overlay-start-watching-button']")
+            
+            # Click the button
+            button.click()
+        except:
+            # Get the body element
+            body = self.browser.find_element(by=By.TAG_NAME, value='body')
 
-        # Unmute the stream
-        body.send_keys('m')
+            # Unmute the stream
+            body.send_keys('m')
 
         # Get the video element
         self.video_element = self.browser.find_element(by=By.TAG_NAME, value='video')

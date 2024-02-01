@@ -238,7 +238,7 @@ class BotAPI:
             captions = " ".join(
                 audio_transcription[transctiption_index - 2: transctiption_index + 4])
             message = f"{self.config.target_channel} talked to/about you ({self.config.bot_username}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_username})"
-            chat_message = self.create_dummy_chat_message(self.config.target_channel, message)
+            chat_message = Message(self.config.target_channel, message)
             self.send_response(chat_message, respond=True)
 
 

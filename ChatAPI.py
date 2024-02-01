@@ -45,7 +45,7 @@ class ChatAPI:
         self.memory = memory
         self.args = args
 
-        self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. The following are some info about the stream: "
+        self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. Don't put usernames in your messages. The following are some info about the stream: "
         self.prompt += self.config.prompt_extras
 
 
@@ -274,7 +274,7 @@ class ChatAPI:
     def get_ai_response_with_image(self, chat_message: Message):
         
         # Add the user message to the conversation
-        self.add_user_message(chat_message, with_image=True)
+        self.add_user_message(chat_message, with_image=True, no_twitch_chat=True)
 
         # Get a response from the AI
         response = self.openai_api.chat.completions.create(

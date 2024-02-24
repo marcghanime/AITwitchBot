@@ -4,14 +4,12 @@ import sys
 import json
 import time
 import dataclasses
-import argparse
-from argparse import Namespace
 from ChatAPI import ChatAPI
 from TwitchAPI import TwitchAPI
 from BotAPI import BotAPI
 from AudioAPI import AudioAPI
-from ImageAPI import ImageAPI
-from models import Config, Memory
+from utils.models import Config, Memory
+from utils.pubsub import PubSub, PubEvents
 
 TRANSCRIPTION_MISTAKES = {
     "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
@@ -21,8 +19,8 @@ TRANSCRIPTION_MISTAKES = {
 class CLI:
     config: Config
     memory: Memory
+    pubsub: PubSub
 
-    image_api: ImageAPI
     audio_api: AudioAPI
     twitch_api: TwitchAPI
     chat_api: ChatAPI
@@ -30,9 +28,17 @@ class CLI:
 
     stop_event = threading.Event()
 
-    def __init__(self, args: Namespace):
+    audio_captions: str = ""
+
+    def __init__(self):
         # Register shutdown handler
         signal.signal(signal.SIGINT, self.shutdown_handler)
+
+        # Create the PubSub
+        self.pubsub = PubSub()
+
+        # Subscribe to the transcript event
+        self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_captions)
 
         # Load data
         self.config = self.load_config()
@@ -44,23 +50,19 @@ class CLI:
         # Setup
         self.add_mistakes_to_detection_words()
 
-        # Image API
-        self.image_api = ImageAPI(self.config)
-
         # Audio API
-        self.audio_api = AudioAPI(args, self.config)
+        self.audio_api = AudioAPI(self.config, self.pubsub)
 
         # Twitch API
-        self.twitch_api = TwitchAPI(args, self.config)
+        self.twitch_api = TwitchAPI(self.config, self.pubsub)
 
         # Chat API
-        self.chat_api = ChatAPI(args, self.config, self.memory, self.audio_api, self.image_api, self.twitch_api)
+        self.chat_api = ChatAPI(self.config, self.pubsub, self.memory)
         
         # Bot API
-        self.bot_api = BotAPI(args, self.config, self.memory, self.audio_api, self.twitch_api, self.chat_api)
+        self.bot_api = BotAPI(self.config, self.pubsub, self.memory, self.twitch_api, self.chat_api)
 
         # Start threads
-        self.bot_api.start()
         self.audio_api.start()
         self.start()
     
@@ -69,26 +71,37 @@ class CLI:
     def start(self):
         old_message_count = self.bot_api.get_message_count()
         old_captions = ""
-        captions = ""
         
-        print(f"Message-Counter: {old_message_count}\n Captions: \n {captions}")
+        print(f"Counter: {old_message_count}\n Captions: \n {self.audio_captions}")
 
         while not self.stop_event.is_set():
-            try:
-                captions = "\n".join(self.audio_api.transcription_queue1.get(timeout=1))
-            except:
-                captions = old_captions
-
+            # update the reaction time
             time_to_reaction = self.memory.reaction_time - time.time()
-
-            if old_message_count != self.bot_api.get_message_count() or old_captions != captions:
-                print(
-                    f"Counter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
+            
+            # check for new infos to print 
+            if old_message_count != self.bot_api.get_message_count() or old_captions != self.audio_captions:
+                print(f"\nCounter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{self.audio_captions}")
 
                 old_message_count = self.bot_api.get_message_count()
-                old_captions = captions
+                old_captions = self.audio_captions
 
-            time.sleep(1)
+            # sleep for 2.5 seconds
+            time.sleep(2.5)
+
+
+    # Callable for audio transcript
+    def update_captions(self, transcript: list):
+        # Extract the text from the transcript
+        text = map(lambda x: x['text'], transcript)
+
+        # Join the text
+        transcript_text = "".join(text)
+
+        # Keep only the last 250 words
+        transcript_text = " ".join(transcript_text.split()[-250:]) 
+
+        # Update the captions
+        self.audio_captions = transcript_text
 
 
     # Adds all possible transcription mistakes to the detection words
@@ -143,11 +156,14 @@ class CLI:
 
 
     def save_memory(self) -> None:
+        memory = self.chat_api.memory
         with open("memory.json", "w") as outfile:
-            json.dump(dataclasses.asdict(self.chat_api.memory), outfile, indent=4)
+            json.dump(dataclasses.asdict(memory), outfile, indent=4)
 
 
     def shutdown_handler(self, signal, frame):
+        self.audio_api.stop()
+
         print('Shutting down...')
         self.stop_event.set()
         
@@ -157,17 +173,10 @@ class CLI:
         print('Saving memory...')
         self.save_memory()
 
-        self.bot_api.stop()
-        self.audio_api.stop()
         self.twitch_api.shutdown()
-        self.image_api.shutdown()
 
         sys.exit(0)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Start the bot.')
-    parser.add_argument('--lite', action='store_true', help='Use as little resources as possible.')
-    parser.add_argument('--testing', action='store_true', help='Use testing mode.')
-    args = parser.parse_args()
-    cli = CLI(args)
+    cli = CLI()

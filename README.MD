@@ -12,15 +12,20 @@
 3. Fill out the config file. See [Config File](#config-file) for detailed info.
 
 ## Running
-1. Run `python main.py [*args*]`
+1. Run `backend.py` to start the backend server.
+2. In a different terminal Run `python main.py [*args*]`
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
-## Args
-- `--lite` - Runs the bot with minimum performance
-- `--testing` - Runs the bot in testing mode (disables some actions)
-
 ## TODO
+- [ ] Check if stream is online or handle offline stream
+- [ ] Handle whisper backend server situation
+- [ ] Refactor APIs to own folder
+- [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
+- [ ] Run it in a k8s cluster
+- [ ] Use environment variables for config
+- [ ] When environment variables are used, remove setup.py
+- [ ] Improve authentication process (with a frontend maybe)
 
 ## Config File
 | Entry | Type | Description |
@@ -40,7 +45,7 @@
 | **detection_words** | automatically filled | The 'verbal' words that will trigger the bot to respond |
 
 ## Commands 
-The following commands are available to **admin**, **streamer** and **mods** via !{bot_username} :
+The following commands are available to **admin**, **streamer** and **mods** via twitch whispers to the bot:
 + **timeout [*username*] [*seconds*]** - the bot ignores the user for the given duration
 + **reset [*username*]** - clears the conversation memory with the given user
 + **cooldown [*minutes*]** - puts the bot in cooldown for the given duration (ignores all messages)

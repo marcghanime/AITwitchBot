@@ -1,7 +1,5 @@
-import queue
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from argparse import Namespace
 
 from twitchAPI.twitch import Twitch, TwitchUser
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
@@ -9,25 +7,25 @@ from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshToken
 from twitchAPI.chat import Chat, ChatMessage, WhisperEvent
 from twitchAPI.helper import first
 
-from models import Config, Message
+from utils.models import Config, Message
+from utils.pubsub import PubSub, PubEvents
 
 
 class TwitchAPI:
     config: Config
-    args: Namespace
+    pubsub: PubSub
+
     twitch: Twitch
     chat: Chat
-    message_queue: queue.Queue[Message]
-    whisper_queue: queue.Queue[WhisperEvent]
     chat_history = []
     bot_user: TwitchUser
 
-    def __init__(self, args: Namespace, config: Config):
+    def __init__(self, config: Config, pubsub: PubSub):
         self.config = config
-        self.args = args
-        
-        self.message_queue = queue.Queue()
-        self.whisper_queue = queue.Queue()
+        self.pubsub = pubsub
+
+        # Subscribe to the shutdown event
+        self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
         print("Initializing Twitch API...")
          
@@ -68,6 +66,7 @@ class TwitchAPI:
         # Join channel
         await self.chat.join_room(self.config.target_channel)
     
+
     # This will be called whenever a message in a channel was send by either the bot OR another user
     async def on_message(self, msg: ChatMessage):
         # Check if user is the bot itself
@@ -81,20 +80,23 @@ class TwitchAPI:
         if len(self.chat_history) > 20:
             self.chat_history.pop(0)
 
+        # publish chat history
+        self.pubsub.publish(PubEvents.CHAT_HISTORY, self.chat_history.copy())    
+
         # Create message object
         chat_message = Message(msg.user.name, msg.text, msg.user.mod)
 
         # Add message to message queue
-        self.message_queue.put(chat_message)
+        self.pubsub.publish(PubEvents.CHAT_MESSAGE, chat_message)
 
+
+    # This will be called whenever a whisper was send to the bot
     async def on_whisper(self, whisper: WhisperEvent):
-        self.whisper_queue.put(whisper)
+        self.pubsub.publish(PubEvents.WHISPER_MESSAGE, whisper)
+
 
     # Send message to chat
     def send_message(self, message: str):
-        if self.args.testing:
-            return
-
         # Limit message length
         if len(message) > 500:
             message = message[:475] + "..."
@@ -154,16 +156,3 @@ class TwitchAPI:
         # Set tokens in config
         self.config.twitch_user_token = twitch_user_token
         self.config.twitch_user_refresh_token = refresh_token
-
-
-    # Return chat history
-    def get_chat_history(self):
-        return self.chat_history.copy()
-    
-    # Return the message queue
-    def get_message_queue(self):
-        return self.message_queue
-    
-    # Return the whisper queue
-    def get_whisper_queue(self):
-        return self.whisper_queue

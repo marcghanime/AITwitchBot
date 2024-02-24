@@ -1,27 +1,24 @@
 import json
 import time
-from typing import Callable, List
-from argparse import Namespace
+from typing import List
 
-import tiktoken
 from openai import OpenAI
 
-from TwitchAPI import TwitchAPI
-from AudioAPI import AudioAPI
 from ImageAPI import ImageAPI
-from models import Memory, Config, Message
-from utils import clean_message, remove_image_messages
+from utils.models import Memory, Config, Message
+from utils.functions import clean_message, remove_image_messages
+from utils.pubsub import PubSub, PubEvents
 
 class ChatAPI:
     config: Config
-    args: Namespace
+    pubsub: PubSub
     memory: Memory
     openai_api: OpenAI
-    twitch_api: TwitchAPI
-    audio_api: AudioAPI
     image_api: ImageAPI
     prompt: str
-    bot_function_callback: Callable[[[str, Message]], str]
+
+    audio_transcript: str = ""
+    twitch_chat_history: List[str] = []
 
     # Define the functions that the AI can call
     functions = [
@@ -36,17 +33,40 @@ class ChatAPI:
         }
     ]
 
-    def __init__(self, args: Namespace, config: Config, memory: Memory, audio_api: AudioAPI, image_api: ImageAPI, twitch_api: TwitchAPI):
+    def __init__(self, config: Config, pubsub: PubSub, memory: Memory):
         self.config = config
-        self.openai_api = OpenAI(api_key=config.openai_api_key)
-        self.twitch_api = twitch_api
-        self.audio_api = audio_api
-        self.image_api = image_api
+        self.pubsub = pubsub
         self.memory = memory
-        self.args = args
+        self.openai_api = OpenAI(api_key=config.openai_api_key)
+        self.image_api = ImageAPI(config)
+
+        # Subscribe to events
+        self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_transcript)
+        self.pubsub.subscribe(PubEvents.CHAT_HISTORY, self.update_twitch_chat_history)
+
 
         self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. Don't put usernames in your messages. The following are some info about the stream: "
         self.prompt += self.config.prompt_extras
+
+
+    # Callback for the chat history event
+    def update_twitch_chat_history(self, chat_history: List[str]):
+        self.twitch_chat_history = chat_history
+
+
+    # Callback for the transcript event
+    def update_transcript(self, transcript: list):
+        # Extract the text from the transcript
+        text = map(lambda x: x['text'], transcript)
+
+        # Join the text
+        transcript_text = "".join(text)
+
+        # keep the last 250 words
+        transcript_text = " ".join(transcript_text.split()[-250:])
+
+        # Update the transcript
+        self.audio_transcript = transcript_text
 
 
     # Get a response from the AI
@@ -89,12 +109,10 @@ class ChatAPI:
             return None
 
 
-    # Set the callback function for bot functions
-    def set_bot_functions_callback(self, callback: Callable[[[str, Message]], str], bot_functions):
-        # Append the bot functions to the list of functions
-        self.functions.extend(bot_functions)
-        # Set the callback function
-        self.bot_function_callback = callback
+    # Add a function to the list of functions
+    def add_functions(self, functions: list):
+        # Append functions to the list
+        self.functions.extend(functions)
 
 
     # Handle a function call from the AI
@@ -102,7 +120,7 @@ class ChatAPI:
         if function_name == "image_input":
             return self.get_ai_response_with_image(chat_message)
         else:
-            return self.bot_function_callback(function_name, chat_message)
+            return self.pubsub.publish(PubEvents.BOT_FUNCTION, function_name, chat_message)
 
 
     # Log an error to the logs.json file
@@ -140,30 +158,11 @@ class ChatAPI:
 
     # Update the system prompt
     def update_prompt(self, username: str, no_twitch_chat: bool, no_audio_context: bool):
-        twitch_chat_history = [] if no_twitch_chat else self.twitch_api.get_chat_history()
-        captions = [] if no_audio_context else self.audio_api.transcription_queue2.get()
+        twitch_chat_history = [] if no_twitch_chat else self.twitch_chat_history
+        captions = "" if no_audio_context else self.audio_transcript
 
         new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
         self.memory.conversations[username][0]["content"] = new_prompt
-
-        limit: int = self.config.openai_api_max_tokens_total - \
-            self.config.openai_api_max_tokens_response - 50  # 50 is a buffer
-
-        try:
-            while self.num_tokens_from_messages(self.memory.conversations[username]) > limit:
-                if len(twitch_chat_history) == 0 and len(captions) == 0:
-                    break
-
-                if len(twitch_chat_history) != 0:
-                    twitch_chat_history.pop(0)
-                if len(captions) != 0:
-                    captions.pop(0)
-
-                new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
-                self.memory.conversations[username][0]["content"] = new_prompt
-        except Exception as error:
-            error_msg = f"{type(error).__name__}: {str(error)}"
-            self.log_error(error_msg, username)
 
 
     # Generate extra context for the system prompt
@@ -284,18 +283,3 @@ class ChatAPI:
         )
 
         return response.choices[0].message.content
-
-
-    # Returns the number of tokens used by a list of messages.
-    def num_tokens_from_messages(self, messages):
-        encoding = tiktoken.get_encoding("cl100k_base")
-        num_tokens = 0
-        for message in messages:
-            # every message follows <im_start>{role/name}\n{content}<im_end>\n
-            num_tokens += 4
-            for key, value in message.items():
-                num_tokens += len(encoding.encode(value))
-                if key == "name":  # if there's a name, the role is omitted
-                    num_tokens += -1  # role is always required and always 1 token
-        num_tokens += 2  # every reply is primed with <im_start>assistant
-        return num_tokens

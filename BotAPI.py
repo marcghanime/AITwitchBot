@@ -1,18 +1,14 @@
 import time
-import threading
-import queue
 import random
-from argparse import Namespace
 
 from TwitchAPI import TwitchAPI
 from ChatAPI import ChatAPI
-from AudioAPI import AudioAPI
 from ShazamAPI import ShazamAPI
-from models import Config, Memory, Message
-from utils import check_banned_words
+from utils.models import Config, Memory, Message
+from utils.functions import check_banned_words
+from utils.pubsub import PubSub, PubEvents
 
 from twitchAPI.chat import WhisperEvent, ChatUser
-from typing import List
 
 BOT_FUNCTIONS = [
     {
@@ -28,18 +24,11 @@ BOT_FUNCTIONS = [
 
 class BotAPI:
     config: Config
-    args: Namespace
+    pubsub: PubSub
     memory: Memory
     twitch_api: TwitchAPI
     chat_api: ChatAPI
-    audio_api: AudioAPI
     shazam_api: ShazamAPI
-
-    # Thread variables
-    thread: threading.Thread
-    stop_event: threading.Event = threading.Event()
-    message_queue: queue.Queue[Message]
-    whisper_queue: queue.Queue[WhisperEvent]
 
     # Strings
     command_help: str = ""
@@ -47,116 +36,85 @@ class BotAPI:
 
     # Bot state
     message_count: int = 0
+    processed_segment_starts: list = []
     ignored_message_threshold: int = 75
     length_message_threshold: int = 50
 
 
-    def __init__(self, args: Namespace, config: Config, memory: Memory, audio_api: AudioAPI, twitch_api: TwitchAPI, chat_api: ChatAPI):
+    def __init__(self, config: Config, pubsub: PubSub, memory: Memory, twitch_api: TwitchAPI, chat_api: ChatAPI):
         self.config = config
-        self.args = args
+        self.pubsub = pubsub
         self.memory = memory
         self.twitch_api = twitch_api
         self.chat_api = chat_api
-        self.audio_api = audio_api
         self.shazam_api = ShazamAPI(config)
 
-        # Setup queues
-        self.message_queue = self.twitch_api.get_message_queue()
-        self.whisper_queue = self.twitch_api.get_whisper_queue()   
+        # Subscribe to events
+        self.pubsub.subscribe(PubEvents.CHAT_MESSAGE, self.process_message)
+        self.pubsub.subscribe(PubEvents.WHISPER_MESSAGE, self.handle_command)
+        self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.check_verbal_mention)
+        self.pubsub.subscribe(PubEvents.BOT_FUNCTION, self.bot_functions_callback)
 
-        # Set callbacks
-        self.audio_api.set_verbal_mention_callback(self.mentioned_verbally)   
-        self.chat_api.set_bot_functions_callback(self.bot_functions_callback, bot_functions=BOT_FUNCTIONS) 
+        # Set bot functions 
+        self.chat_api.add_functions(BOT_FUNCTIONS) 
 
         # Setup strings 
         self.setup_strings()
     
-    # Start the bot
-    def start(self):
-        self.thread = threading.Thread(target=self.process_messages)
-        self.thread.daemon = True
-        self.thread.start()
-
-        self.whisper_thread = threading.Thread(target=self.process_whispers)
-        self.whisper_thread.daemon = True
-        self.whisper_thread.start()
-        print("Bot Thread Started.")
-
-    # Stop the bot
-    def stop(self):
-        self.stop_event.set()
-        self.thread.join()
-        print("Bot Thread Stopped.")
 
     # Setup constant strings
     def setup_strings(self):
         self.command_help = f"Must be {self.config.target_channel} or a Mod. Commands: timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
         self.react_string = f"repond or react to the last thing {self.config.target_channel} said based only on the provided live captions and the image for context."
 
+
     # Thread to process messages received from the Twitch API
-    def process_messages(self):
-        while not self.stop_event.is_set():
-            # get the next message from the queue (this will block until a message is available or 2.5 seconds have passed)
-            try:
-                chat_message = self.message_queue.get(timeout=2.5)
-            except queue.Empty:
-                continue
+    def process_message(self, chat_message: Message):
+        username = chat_message.username
+        message = chat_message.text
+        
+        # ignore short messages
+        if len(message.split(" ")) <= 3:
+            return
 
-            username = chat_message.username
-            message = chat_message.text
-            
-            # ignore short messages
-            if len(message.split(" ")) <= 3:
-                continue
+        if self.mentioned(username, message) and self.moderation(username):
+            self.send_response(chat_message)
+            if self.memory.slow_mode_seconds > 0:
+                time.sleep(self.memory.slow_mode_seconds)
 
-            if self.mentioned(username, message) and self.moderation(username):
-                self.send_response(chat_message)
-                if self.memory.slow_mode_seconds > 0:
-                    time.sleep(self.memory.slow_mode_seconds)
+        elif self.react() and self.moderation():
+            chat_message.text = self.react_string
+            self.send_response(chat_message, react=True)
+            self.memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
 
-            elif self.react() and self.moderation():
-                chat_message.text = self.react_string
-                self.send_response(chat_message, react=True)
-                self.memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
+        elif self.engage(message) and self.moderation(username):
+            chat_message.text = f"@{self.config.target_channel} {message}"
+            self.send_response(chat_message)
+            if self.memory.slow_mode_seconds > 0:
+                time.sleep(self.memory.slow_mode_seconds)
 
-            elif self.engage(message) and self.moderation(username):
-                chat_message.text = f"@{self.config.target_channel} {message}"
-                self.send_response(chat_message)
-                if self.memory.slow_mode_seconds > 0:
-                    time.sleep(self.memory.slow_mode_seconds)
+        else:
+            self.message_count += 1
 
-            else:
-                self.message_count += 1
-
-    # Thread to process whispers received from the Twitch API
-    def process_whispers(self):
-        while not self.stop_event.is_set():
-            # get the next whisper from the queue (this will block until a whisper is available or 2.5 seconds have passed)
-            try:
-                entry = self.whisper_queue.get(timeout=2.5)
-            except queue.Empty:
-                continue
-
-            if self.has_priviege(entry.user):
-                self.handle_commands(entry)
 
     # Check if the user has the privilege to use special commands
     def has_priviege(self, user: ChatUser) -> bool:
         return user.mod or user.name == self.config.target_channel.lower() or user.name == self.config.admin_username.lower()    
+
 
     # Send the intro message
     def send_intro(self):
         intro_message = f"Hi, I'm back <3 for mod commands checkout my channel pannels or whisper me."
         self.twitch_api.send_message(intro_message)
 
+
     # Get the message count
     def get_message_count(self):
         return self.message_count
 
+
     # Check if moderation allows the bot to respond
     def moderation(self, username: str = "") -> bool:
-        if self.args.testing:
-            return False
         if username in self.memory.banned_users:
             return False
         if time.time() < self.memory.cooldown_time:
@@ -167,17 +125,21 @@ class BotAPI:
             del self.memory.timed_out_users[username]  # remove if time is up
         return True
 
+
     # Check if the bot was mentioned in the message
     def mentioned(self, username: str, message: str) -> bool:
         return username != self.config.bot_username.lower() and self.config.bot_username.lower() in message.lower()
+
 
     # Check if the bot should engage
     def engage(self, message: str) -> bool:
         return self.message_count > self.ignored_message_threshold and len(message) > self.length_message_threshold
 
+
     # Check if the bot should react
     def react(self) -> bool:
         return time.time() > self.memory.reaction_time
+
 
     # Send a response to the chat
     def send_response(self, chat_message: Message, react: bool = False, respond: bool = False):
@@ -213,33 +175,28 @@ class BotAPI:
             self.message_count = 0
 
 
-    # Callback for when the bot is mentioned verbally
-    def mentioned_verbally(self, audio_transcription: List[str]):
-        lines = self.audio_api.detected_lines_queue.get()
-        respond: bool = False
-        transctiption_index = None
+    # Callback for when the transcript is received
+    def check_verbal_mention(self, transcript: list):
+        # filter out already reacted segments by start time
+        transcript = [segment for segment in transcript if segment['start'] not in self.processed_segment_starts]
 
-        for detection_index, entry in enumerate(lines):
-            line: str = entry['line']
-            fixed_line: str = entry['fixed_line']
-            responded: bool = entry['responded']
-            
-            try:
-                transctiption_index = audio_transcription.index(line)
-            except ValueError:
-                continue
-            audio_transcription[transctiption_index] = fixed_line
+        # loop through the transcript except the last two segments
+        for segment in transcript[:-2]:
+            # check if the bot was mentioned
+            if self.mentioned(self.config.target_channel, segment['text']):
+                # get all the text from the transcript
+                captions = "".join([segment['text'] for segment in transcript[:-2]])
 
-            if not responded and not respond:
-                respond = True
-                self.audio_api.detected_lines[detection_index]['responded'] = True
-
-        if respond and transctiption_index:
-            captions = " ".join(
-                audio_transcription[transctiption_index - 2: transctiption_index + 4])
-            message = f"{self.config.target_channel} talked to/about you ({self.config.bot_username}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_username})"
-            chat_message = Message(self.config.target_channel, message)
-            self.send_response(chat_message, respond=True)
+                # send a response to the chat
+                message = f"{self.config.target_channel} talked to/about you ({self.config.bot_username}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_username})"
+                chat_message = Message(self.config.target_channel, message)
+                self.send_response(chat_message, respond=True)
+                
+                # add the start time to the processed list
+                self.processed_segment_starts.append(segment['start'])
+                
+                # stop the loop
+                break
 
 
     # Callback for when the ai calls a function
@@ -270,9 +227,14 @@ class BotAPI:
         
 
     # Handles commands sent to the bot
-    def handle_commands(self, whisper: WhisperEvent) -> None:
+    def handle_command(self, whisper: WhisperEvent) -> None:
         command_not_found: bool = False
         input: str = whisper.message
+
+        # Check if the user has the privilege to use whisper commands
+        if not self.has_priviege(whisper.user):
+            self.twitch_api.send_whisper(whisper.user, "You don't have the privilege to use whisper commands.")
+            return
 
         # reset <username> - clears the conversation memory with the given username
         if input.startswith("reset "):
@@ -345,9 +307,8 @@ class BotAPI:
         elif input.startswith("test-msg "):
             username = "testuser"
             message = input.split(" ", 1)[1]
-            if self.args.testing:
-                chat_message = Message(username=username, text=message)
-                self.send_response(chat_message)
+            chat_message = Message(username=username, text=message)
+            self.send_response(chat_message)
 
         # add-det-word <word> - adds a word to the detection words
         elif input.startswith("add-det-word "):
@@ -356,15 +317,13 @@ class BotAPI:
 
         # send-intro - sends the intro message
         elif input == ("intro"):
-            if not self.args.testing:
-                self.send_intro()
+            self.send_intro()
 
         # react - manually trigger a reaction
-        elif input == ("react"):
-            if not self.args.testing:
-                chat_message = Message(username=self.config.target_channel, text=self.react_string)
-                self.send_response(chat_message, react=True)
-                self.memory.reaction_time = time.time() + random.randint(300, 600)
+        elif input == ("react"):   
+            chat_message = Message(username=self.config.target_channel, text=self.react_string)
+            self.send_response(chat_message, react=True)
+            self.memory.reaction_time = time.time() + random.randint(300, 600)
         
         # command not found
         else:
@@ -372,7 +331,6 @@ class BotAPI:
 
         # Respond to whisper
         if command_not_found:
-            self.twitch_api.send_whisper(whisper.user, f"Command not found!")
-            self.twitch_api.send_whisper(whisper.user, self.command_help)
+            self.twitch_api.send_whisper(whisper.user, f"Command not found! {self.command_help}")
         else:
             self.twitch_api.send_whisper(whisper.user, f"Command executed!")

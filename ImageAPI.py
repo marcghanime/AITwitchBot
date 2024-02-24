@@ -1,72 +1,43 @@
-from PIL import Image
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.remote.webelement import WebElement
+import io
+import subprocess
 import base64
 
-from models import Config
-import io
-import time
+from utils.models import Config
 
 class ImageAPI:
-    browser: webdriver.Chrome
-    video_element: WebElement
+    config: Config
 
     def __init__(self, config: Config):
-        print("Initializing Image API...")
-        
-        # Set up the browser
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        self.browser = webdriver.Chrome(options=chrome_options)
-
-        # Maximize the browser window
-        self.browser.set_window_size(1920, 1080)
-        self.browser.maximize_window()
-
-        # Navigate to the Twitch stream
-        self.browser.get("https://www.twitch.tv/" + config.target_channel)
-        
-        # Wait for the stream to load
-        time.sleep(10)
-
-        try:
-            # Get button by XPATH
-            button = self.browser.find_element(by=By.XPATH, value="//button[@data-a-target='content-classification-gate-overlay-start-watching-button']")
-            
-            # Click the button
-            button.click()
-        except:
-            # Get the body element
-            body = self.browser.find_element(by=By.TAG_NAME, value='body')
-
-            # Unmute the stream
-            body.send_keys('m')
-
-        # Get the video element
-        self.video_element = self.browser.find_element(by=By.TAG_NAME, value='video')
-
-        print("Image API Initialized")
+        self.config = config
     
+
     # Take screenshot of twitch stream
-    def take_screenshot(self):       
-        # Get the screenshot as bytes
-        screenshot_bytes = io.BytesIO(self.video_element.screenshot_as_png)
+    def take_screenshot(self) -> io.BytesIO:       
+        # Run the streamlink command
+        streamlink_process = subprocess.Popen(
+            ['streamlink', f'twitch.tv/{self.config.target_channel}', 'best', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
+            stdout=subprocess.PIPE)
 
-        # Convert the bytes to an image object
-        image = Image.open(screenshot_bytes).convert('RGB')
+        # Pipe the output to ffmpeg
+        ffmpeg_process = subprocess.Popen(
+            ['ffmpeg', '-i', 'pipe:0', '-vframes', '1', '-vcodec', 'png', '-f', 'image2pipe', '-loglevel', 'panic', '-'],
+            stdin=streamlink_process.stdout,
+            stdout=subprocess.PIPE)
 
-        return image
+        # Read the output into a BytesIO object
+        image_bytes = io.BytesIO(ffmpeg_process.communicate()[0])
+
+        # Close the processes
+        streamlink_process.kill()
+        ffmpeg_process.kill()
+
+        return image_bytes
     
+
     # Get the screenshot as a base64 string
     def get_base64_screenshot(self):
-        image = self.take_screenshot()
-        buffered = io.BytesIO()
-        image.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode('utf-8')
-    
-    # Close the browser
-    def shutdown(self):
-        self.browser.close()
+        # Get the screenshot as a BytesIO object
+        image_bytes = self.take_screenshot()
+
+        # Encode the image data to base64
+        return base64.b64encode(image_bytes.getvalue()).decode('utf-8')

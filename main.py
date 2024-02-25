@@ -8,10 +8,10 @@ import dataclasses
 from api.chat import ChatAPI
 from api.twitch import TwitchAPI
 from api.bot import BotAPI
-from api.audio import AudioAPI
 
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
+from utils.transcript import TranscriptionClient
 
 TRANSCRIPTION_MISTAKES = {
     "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
@@ -23,7 +23,6 @@ class CLI:
     memory: Memory
     pubsub: PubSub
 
-    audio_api: AudioAPI
     twitch_api: TwitchAPI
     chat_api: ChatAPI
     bot_api: BotAPI
@@ -53,9 +52,6 @@ class CLI:
         # Setup
         self.add_mistakes_to_detection_words()
 
-        # Audio API
-        self.audio_api = AudioAPI(self.config, self.pubsub)
-
         # Twitch API
         self.twitch_api = TwitchAPI(self.config, self.pubsub)
 
@@ -65,8 +61,10 @@ class CLI:
         # Bot API
         self.bot_api = BotAPI(self.config, self.pubsub, self.memory, self.twitch_api, self.chat_api)
 
-        # Start threads
-        self.audio_api.start()
+        # Initialize the whisper transcription client and start the transcription
+        self.client = TranscriptionClient(self.config, self.pubsub, lang="en")
+        
+        # Start the main thread
         self.start()
     
 

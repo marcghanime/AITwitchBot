@@ -5,19 +5,22 @@ import json
 import websocket
 import uuid
 import time
-import queue
 
 from utils.models import Config
+from utils.pubsub import PubSub, PubEvents
 
 class TranscriptionClient:
     def __init__(
         self,
         config: Config,
-        transcript_queue: queue.Queue,
+        pubsub: PubSub,
         lang: str = None,
         model: str = "small",
     ):
         self.config = config
+        self.pubsub = pubsub
+
+        self.pubsub.subscribe(PubEvents.SHUTDOWN, self.stop)
 
         # websocket variables
         self.uid = str(uuid.uuid4())
@@ -28,7 +31,6 @@ class TranscriptionClient:
         self.model = model
 
         # transcript variables
-        self.transcript_queue = transcript_queue
         self.transcript = []
 
         # status variables
@@ -40,7 +42,15 @@ class TranscriptionClient:
         # thread variables
         self.stop_event = threading.Event()
         self.processing_thread: threading.Thread
+
+        # connect to the server
+        self.connect()
+
+        # start the processing thread
+        self.start()
             
+
+    # Connect to the backend server
     def connect(self):
         # initialize the websocket client
         socket_url = f"ws://localhost:9090"
@@ -61,11 +71,11 @@ class TranscriptionClient:
 
         # wait for server to be ready
         while not self.recording:
+            # conditions are not met
             if self.waiting or self.server_error or self.ws_closed:
-                return False
+                # send a shutdown event
+                return self.pubsub.publish(PubEvents.SHUTDOWN)
         
-        # successfully connected
-        return True
 
 
     def start(self):
@@ -142,9 +152,13 @@ class TranscriptionClient:
                     if not len(self.transcript) or float(seg['start']) >= float(self.transcript[-1]['end']):
                         self.transcript.append(seg)
         
-        self.transcript_queue.put(self.transcript)
         
+        # keep the last entries of duplicates with the same start
+        transcript = list({v['start']:v for v in self.transcript}.values())
 
+        # publish the transcript
+        self.pubsub.publish(PubEvents.TRANSCRIPT, transcript)
+        
 
     def on_error(self, ws, error):
         print(f"[ERROR]: {error}")
@@ -245,4 +259,8 @@ class TranscriptionClient:
             if ffmpeg_process:
                 ffmpeg_process.kill()
 
-        print("[INFO]: stream processing finished.")
+        print("[INFO]: Stream processing finished.")
+
+        # if stop event is not set, send a shutdown event
+        if not self.stop_event.is_set():
+            self.pubsub.publish(PubEvents.SHUTDOWN)

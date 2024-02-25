@@ -74,8 +74,6 @@ class CLI:
     def start(self):
         old_message_count = self.bot_api.get_message_count()
         old_captions = ""
-        
-        print(f"Counter: {old_message_count}\n Captions: \n {self.audio_captions}")
 
         while not self.stop_event.is_set():
             # update the reaction time
@@ -165,18 +163,18 @@ class CLI:
 
 
     def shutdown_handler(self, *args, **kwargs):
-        print('Shutting down...')
+        print('[INFO]: Shutting down...')
         self.pubsub.publish(PubEvents.SHUTDOWN)
 
 
     def shutdown(self):
-        print('Stopping main thread...')
+        print('[INFO]: Stopping main thread...')
         self.stop_event.set()
         
-        print('Saving config...')
+        print('[INFO]: Saving config...')
         self.save_config()
 
-        print('Saving memory...')
+        print('[INFO]: Saving memory...')
         self.save_memory()
 
 

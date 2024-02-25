@@ -27,14 +27,14 @@ class TwitchAPI:
         # Subscribe to the shutdown event
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
-        print("Initializing Twitch API...")
+        print("[INFO]: Initializing Twitch API...")
          
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.authenticate()))
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.init_chat()))
 
-        print("Twitch API Initialized")
+        print("[INFO]: Twitch API Initialized")
 
 
     # API Shutdown
@@ -44,7 +44,7 @@ class TwitchAPI:
         self.chat.stop()
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.twitch.close()))
-        print("Twitch API Shutdown")
+        print("[INFO]: Twitch API Shutdown")
 
 
     # Initialize the chat bot
@@ -147,7 +147,8 @@ class TwitchAPI:
             try:
                 twitch_user_token, refresh_token = await auth.authenticate()
             except:
-                print("Authentication failed")
+                print("[ERROR]: Authentication failed")
+                self.pubsub.publish(PubEvents.SHUTDOWN)
                 return
 
         # Set user authentication

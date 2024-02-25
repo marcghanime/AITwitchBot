@@ -100,7 +100,7 @@ class TranscriptionClient:
                     f"[INFO]:Server is full. Estimated wait time {round(message['message'])} minutes."
                 )
             elif message["status"] == "ERROR":
-                print(f"Message from Server: {message['message']}")
+                print(f"[ERROR]: Message from Server: {message['message']}")
                 self.server_error = True
             return
 
@@ -147,7 +147,7 @@ class TranscriptionClient:
 
 
     def on_error(self, ws, error):
-        print(error)
+        print(f"[ERROR]: {error}")
 
 
     def on_close(self, ws, close_status_code, close_msg):
@@ -178,7 +178,7 @@ class TranscriptionClient:
         try:
             self.client_socket.send(message, websocket.ABNF.OPCODE_BINARY)
         except Exception as e:
-            print(e)
+            print(f"[ERROR]: {e}")
 
 
     def close_websocket(self):

@@ -19,12 +19,12 @@
 ## TODO
 - [ ] Check if stream is online or handle offline stream
 - [ ] Handle whisper backend server situation
-- [ ] Refactor APIs to own folder
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Run it in a k8s cluster
 - [ ] Use environment variables for config
 - [ ] When environment variables are used, remove setup.py
+- [ ] Replace prints with propper logging
 - [ ] Improve authentication process (with a frontend maybe)
 
 ## Config File

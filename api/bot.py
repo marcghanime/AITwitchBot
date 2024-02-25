@@ -68,7 +68,7 @@ class BotAPI:
         self.react_string = f"repond or react to the last thing {self.config.target_channel} said based only on the provided live captions and the image for context."
 
 
-    # Thread to process messages received from the Twitch API
+    # Process messages received from the Twitch API
     def process_message(self, chat_message: Message):
         username = chat_message.username
         message = chat_message.text

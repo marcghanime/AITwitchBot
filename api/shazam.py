@@ -25,7 +25,7 @@ class ShazamAPI:
         return song
 
 
-    # Thread that records output audio from the stream.
+    # records output audio from the stream.
     def record_audio(self):
         # Run the streamlink command
         streamlink_process = subprocess.Popen(

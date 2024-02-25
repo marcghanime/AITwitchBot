@@ -245,4 +245,4 @@ class TranscriptionClient:
             if ffmpeg_process:
                 ffmpeg_process.kill()
 
-        print("[INFO] stream processing finished.")
+        print("[INFO]: stream processing finished.")

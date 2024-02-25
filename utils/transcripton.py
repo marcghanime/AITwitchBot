@@ -35,11 +35,13 @@ class TranscriptionClient:
         self.recording = False
         self.waiting = False
         self.server_error = False
+        self.ws_closed = False
 
         # thread variables
         self.stop_event = threading.Event()
         self.processing_thread: threading.Thread
-
+            
+    def connect(self):
         # initialize the websocket client
         socket_url = f"ws://localhost:9090"
         self.client_socket = websocket.WebSocketApp(
@@ -57,14 +59,15 @@ class TranscriptionClient:
         self.ws_thread.setDaemon(True)
         self.ws_thread.start()
 
-        
         # wait for server to be ready
         while not self.recording:
-            if self.waiting or self.server_error:
-                self.close_websocket()
-                return
+            if self.waiting or self.server_error or self.ws_closed:
+                return False
         
-    
+        # successfully connected
+        return True
+
+
     def start(self):
         # start processing the audio in a new thread
         self.processing_thread = threading.Thread(target=self.process_audio)
@@ -73,7 +76,12 @@ class TranscriptionClient:
 
     def stop(self):
         self.stop_event.set()
-        self.processing_thread.join()
+        
+        try:
+            self.processing_thread.join()
+        except Exception as e:
+            pass
+        
         self.close_websocket()
 
 
@@ -143,6 +151,7 @@ class TranscriptionClient:
 
 
     def on_close(self, ws, close_status_code, close_msg):
+        self.ws_closed = True
         print(f"[INFO]: Websocket connection closed: {close_status_code}: {close_msg}")
 
 

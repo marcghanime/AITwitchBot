@@ -25,11 +25,20 @@ class AudioAPI:
         # Subscribe to the shutdown event
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.stop)
 
+
+    def start(self):
         # Initialize the Whisper transcription client
         self.client = TranscriptionClient(self.config, self.transcript_queue, lang="en")
 
+        # Connect the client to the backend
+        success = self.client.connect()
 
-    def start(self):
+        # If the connection was not successful, send a shutdown event
+        if not success:
+            print("[ERROR]: Failed to connect to the transcription server")
+            self.pubsub.publish(PubEvents.SHUTDOWN)
+            return
+        
         # Start the client
         self.client.start()
 
@@ -42,7 +51,11 @@ class AudioAPI:
     def stop(self):
         self.client.stop()
         self.stop_event.set()
-        self.read_transcript_thread.join()
+
+        try:
+            self.read_transcript_thread.join()
+        except:
+            pass
 
 
     # Read the transcript from the queue

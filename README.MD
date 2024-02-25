@@ -26,6 +26,7 @@
 - [ ] When environment variables are used, remove setup.py
 - [ ] Replace prints with propper logging
 - [ ] Improve authentication process (with a frontend maybe)
+- [ ] Set backend websocket url as an environment variable
 
 ## Config File
 | Entry | Type | Description |

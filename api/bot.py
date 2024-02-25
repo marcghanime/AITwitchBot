@@ -1,9 +1,9 @@
 import time
 import random
 
-from TwitchAPI import TwitchAPI
-from ChatAPI import ChatAPI
-from ShazamAPI import ShazamAPI
+from api.twitch import TwitchAPI
+from api.chat import ChatAPI
+from api.shazam import ShazamAPI
 from utils.models import Config, Memory, Message
 from utils.functions import check_banned_words
 from utils.pubsub import PubSub, PubEvents

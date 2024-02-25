@@ -4,7 +4,7 @@ from typing import List
 
 from openai import OpenAI
 
-from ImageAPI import ImageAPI
+from api.image import ImageAPI
 from utils.models import Memory, Config, Message
 from utils.functions import clean_message, remove_image_messages
 from utils.pubsub import PubSub, PubEvents

@@ -4,10 +4,12 @@ import sys
 import json
 import time
 import dataclasses
-from ChatAPI import ChatAPI
-from TwitchAPI import TwitchAPI
-from BotAPI import BotAPI
-from AudioAPI import AudioAPI
+
+from api.chat import ChatAPI
+from api.twitch import TwitchAPI
+from api.bot import BotAPI
+from api.audio import AudioAPI
+
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
 

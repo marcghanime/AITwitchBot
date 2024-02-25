@@ -41,6 +41,7 @@ class CLI:
 
         # Subscribe to the transcript event
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_captions)
+        self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
         # Load data
         self.config = self.load_config()
@@ -163,10 +164,13 @@ class CLI:
             json.dump(dataclasses.asdict(memory), outfile, indent=4)
 
 
-    def shutdown_handler(self, signal, frame):
-        self.audio_api.stop()
-
+    def shutdown_handler(self, *args, **kwargs):
         print('Shutting down...')
+        self.pubsub.publish(PubEvents.SHUTDOWN)
+
+
+    def shutdown(self):
+        print('Stopping main thread...')
         self.stop_event.set()
         
         print('Saving config...')
@@ -174,10 +178,6 @@ class CLI:
 
         print('Saving memory...')
         self.save_memory()
-
-        self.twitch_api.shutdown()
-
-        sys.exit(0)
 
 
 if __name__ == '__main__':

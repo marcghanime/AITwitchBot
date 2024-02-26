@@ -4,7 +4,7 @@
 - The twitch account for the bot needs to have a verified phone number to be able to send whispers.
 
 ## Requirements
-- Python 3.10+ [Download](https://www.python.org/downloads/)
+- Python 3.11+ [Download](https://www.python.org/downloads/)
 
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`

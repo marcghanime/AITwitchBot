@@ -1,19 +1,17 @@
 import signal
 import threading
 import sys
-import os
-import msvcrt
 import json
 import time
 import dataclasses
-from ChatAPI import ChatAPI
-from TwitchAPI import TwitchAPI
-from BotAPI import BotAPI
-from AudioAPI import AudioAPI
-from models import Config, Memory
 
+from api.chat import ChatAPI
+from api.twitch import TwitchAPI
+from api.bot import BotAPI
 
-TESTING: bool = False
+from utils.models import Config, Memory
+from utils.pubsub import PubSub, PubEvents
+from utils.transcript import TranscriptionClient
 
 TRANSCRIPTION_MISTAKES = {
     "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
@@ -23,17 +21,26 @@ TRANSCRIPTION_MISTAKES = {
 class CLI:
     config: Config
     memory: Memory
+    pubsub: PubSub
 
-    audio_api: AudioAPI
     twitch_api: TwitchAPI
     chat_api: ChatAPI
     bot_api: BotAPI
 
     stop_event = threading.Event()
 
+    audio_captions: str = ""
+
     def __init__(self):
         # Register shutdown handler
         signal.signal(signal.SIGINT, self.shutdown_handler)
+
+        # Create the PubSub
+        self.pubsub = PubSub()
+
+        # Subscribe to the transcript event
+        self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_captions)
+        self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
         # Load data
         self.config = self.load_config()
@@ -45,21 +52,19 @@ class CLI:
         # Setup
         self.add_mistakes_to_detection_words()
 
-        # Audio API
-        self.audio_api = AudioAPI(self.config)
-
         # Twitch API
-        self.twitch_api = TwitchAPI(self.config, TESTING)
+        self.twitch_api = TwitchAPI(self.config, self.pubsub)
 
         # Chat API
-        self.chat_api = ChatAPI(self.config, self.memory, self.audio_api, self.twitch_api, TESTING)
+        self.chat_api = ChatAPI(self.config, self.pubsub, self.memory)
         
         # Bot API
-        self.bot_api = BotAPI(self.config, self.memory, self.audio_api, self.twitch_api, self.chat_api, TESTING)
+        self.bot_api = BotAPI(self.config, self.pubsub, self.memory, self.twitch_api, self.chat_api)
 
-        # Start threads
-        self.bot_api.start()
-        self.audio_api.start()
+        # Initialize the whisper transcription client and start the transcription
+        self.client = TranscriptionClient(self.config, self.pubsub, lang="en")
+        
+        # Start the main thread
         self.start()
     
 
@@ -67,34 +72,35 @@ class CLI:
     def start(self):
         old_message_count = self.bot_api.get_message_count()
         old_captions = ""
-        captions = ""
-
-        os.system('cls')
-        print(
-            f"Message-Counter: {old_message_count}\n Captions: \n {captions}")
 
         while not self.stop_event.is_set():
-            try:
-                captions = " ".join(self.audio_api.transcription_queue1.get(timeout=1))
-            except:
-                captions = old_captions
-
+            # update the reaction time
             time_to_reaction = self.memory.reaction_time - time.time()
-
-            # Check if there is input available on stdin
-            if msvcrt.kbhit():
-                user_input = input("Enter something: ")
-                self.bot_api.handle_commands(user_input, external=False)
-
-            elif old_message_count != self.bot_api.get_message_count() or old_captions != captions:
-                os.system('cls')
-                print(
-                    f"Counter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{captions}")
+            
+            # check for new infos to print 
+            if old_message_count != self.bot_api.get_message_count() or old_captions != self.audio_captions:
+                print(f"\nCounter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{self.audio_captions}")
 
                 old_message_count = self.bot_api.get_message_count()
-                old_captions = captions
+                old_captions = self.audio_captions
 
-            time.sleep(1)
+            # sleep for 2.5 seconds
+            time.sleep(2.5)
+
+
+    # Callable for audio transcript
+    def update_captions(self, transcript: list):
+        # Extract the text from the transcript
+        text = map(lambda x: x['text'], transcript)
+
+        # Join the text
+        transcript_text = "".join(text)
+
+        # Keep only the last 250 words
+        transcript_text = " ".join(transcript_text.split()[-250:]) 
+
+        # Update the captions
+        self.audio_captions = transcript_text
 
 
     # Adds all possible transcription mistakes to the detection words
@@ -149,25 +155,25 @@ class CLI:
 
 
     def save_memory(self) -> None:
+        memory = self.chat_api.memory
         with open("memory.json", "w") as outfile:
-            json.dump(dataclasses.asdict(self.chat_api.memory), outfile, indent=4)
+            json.dump(dataclasses.asdict(memory), outfile, indent=4)
 
 
-    def shutdown_handler(self, signal, frame):
-        print('Shutting down...')
+    def shutdown_handler(self, *args, **kwargs):
+        print('[INFO]: Shutting down...')
+        self.pubsub.publish(PubEvents.SHUTDOWN)
+
+
+    def shutdown(self):
+        print('[INFO]: Stopping main thread...')
         self.stop_event.set()
-
-        self.bot_api.stop()
-        self.audio_api.stop()
-        self.twitch_api.shutdown()
-
-        print('Saving config...')
+        
+        print('[INFO]: Saving config...')
         self.save_config()
 
-        print('Saving memory...')
+        print('[INFO]: Saving memory...')
         self.save_memory()
-
-        sys.exit(0)
 
 
 if __name__ == '__main__':

@@ -1,15 +1,9 @@
 import json
 import dataclasses
-
-from faster_whisper import WhisperModel
-
-from models import Config
+from utils.models import Config
 
 
 def main():
-    print("checking/downloading whisper model...")
-    WhisperModel("base.en", device="cpu", compute_type="int8")
-
     try:
         with open("config.json", "r", encoding='utf-8'):
             pass

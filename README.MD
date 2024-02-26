@@ -8,25 +8,25 @@
 
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
-2. For the First time run `python setup.py`. It will create a config file and download the whisper model.
+2. For the First time run `python setup.py`. It will create a config file.
 3. Fill out the config file. See [Config File](#config-file) for detailed info.
+4. Authenticate with twitch by running `python utils/authentication.py`. It will open a browser window for you to login and authorize the bot.
 
 ## Running
 1. Run `backend.py` to start the backend server.
-2. In a different terminal Run `python main.py [*args*]`
+2. In a different terminal Run `python main.py`
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
-- [ ] Check if stream is online or handle offline stream
-- [ ] Handle whisper backend server situation
+- [ ] Use environment variables for config
+- [ ] When environment variables are setup, remove setup.py
+- [ ] Set backend websocket url as an environment variable
+- [ ] Replace prints with propper logging
+- [ ] Better way to run whisper_live backend
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Run it in a k8s cluster
-- [ ] Use environment variables for config
-- [ ] When environment variables are used, remove setup.py
-- [ ] Replace prints with propper logging
 - [ ] Improve authentication process (with a frontend maybe)
-- [ ] Set backend websocket url as an environment variable
 
 ## Config File
 | Entry | Type | Description |

@@ -27,6 +27,7 @@
 - [ ] Add 7tv emote support
 - [ ] Run it in a k8s cluster
 - [ ] Improve authentication process (with a frontend maybe)
+- [ ] Get prompt extras from twitch about section
 
 ## Config File
 | Entry | Type | Description |

@@ -42,8 +42,11 @@ class TwitchAPI:
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.chat.leave_room(self.config.target_channel)))
         
-        # Stop chat
-        self.chat.stop()
+        try:
+            self.chat.stop()
+        except:
+            pass
+        
         print("[INFO]: Twitch API Shutdown")
 
 

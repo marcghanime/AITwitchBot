@@ -17,6 +17,8 @@
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
+- [ ] optimize transciprt generation
+- [ ] Fix empty captions if there is no activity
 - [ ] Fix slow mode
 - [ ] Use environment variables for config
 - [ ] When environment variables are setup, remove setup.py

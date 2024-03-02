@@ -11,7 +11,7 @@ from api.bot import BotAPI
 
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
-from utils.transcript import TranscriptionClient
+from utils.transcription import TranscriptionServer
 
 TRANSCRIPTION_MISTAKES = {
     "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
@@ -62,7 +62,7 @@ class CLI:
         self.bot_api = BotAPI(self.config, self.pubsub, self.memory, self.twitch_api, self.chat_api)
 
         # Initialize the whisper transcription client and start the transcription
-        self.client = TranscriptionClient(self.config, self.pubsub, lang="en")
+        self.transcription_server = TranscriptionServer(config=self.config, pubsub=self.pubsub, language="en", model="base.en")
         
         # Start the main thread
         self.start()

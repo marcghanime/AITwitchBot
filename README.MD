@@ -13,11 +13,11 @@
 4. Authenticate with twitch by running `python utils/authentication.py`. It will open a browser window for you to login and authorize the bot.
 
 ## Running
-1. Run `backend.py` to start the backend server.
-2. In a different terminal Run `python main.py`
+1. In a different terminal Run `python main.py`
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
+- [ ] Fix slow mode
 - [ ] Use environment variables for config
 - [ ] When environment variables are setup, remove setup.py
 - [ ] Set backend websocket url as an environment variable

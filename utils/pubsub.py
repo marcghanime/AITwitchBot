@@ -9,6 +9,8 @@ class PubEvents(Enum):
     WHISPER_MESSAGE = 3
     CHAT_HISTORY = 4
     BOT_FUNCTION = 5
+    PAUSE_TRANSCRIPTION = 6
+    RESUME_TRANSCRIPTION = 7
 
 
 class PubSub:

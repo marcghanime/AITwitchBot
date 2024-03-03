@@ -46,14 +46,6 @@ class TranscriptionServer:
     def bytes_to_float_array(audio_bytes):
         raw_data = np.frombuffer(buffer=audio_bytes, dtype=np.int16)
         return raw_data.astype(np.float32) / 32768.0
-    
-
-    def pause(self):
-        self.client.pause()
-
-    
-    def resume(self):
-        self.client.resume()
 
 
     # Process the audio frames from the stream
@@ -148,6 +140,10 @@ class ServeClientFasterWhisper():
 
         self.config = config
         self.pubsub = pubsub
+
+        # subscribe to pubsub events
+        self.pubsub.subscribe(PubEvents.PAUSE_TRANSCRIPTION, self.pause)
+        self.pubsub.subscribe(PubEvents.RESUME_TRANSCRIPTION, self.resume)
 
         # Check if the model is valid
         if model not in self.model_sizes and not os.path.exists(model):

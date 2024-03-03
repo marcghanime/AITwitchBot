@@ -73,16 +73,20 @@ class CLI:
         old_message_count = self.bot_api.get_message_count()
         old_captions = ""
 
+        last_time = time.time()
+
         while not self.stop_event.is_set():
             # update the reaction time
             time_to_reaction = self.memory.reaction_time - time.time()
             
             # check for new infos to print 
-            if old_message_count != self.bot_api.get_message_count() or old_captions != self.audio_captions:
+            if old_message_count != self.bot_api.get_message_count() or old_captions != self.audio_captions or time.time() - last_time > 10:
                 print(f"\nCounter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{self.audio_captions}")
 
                 old_message_count = self.bot_api.get_message_count()
                 old_captions = self.audio_captions
+
+                last_time = time.time()
 
             # sleep for 2.5 seconds
             time.sleep(2.5)

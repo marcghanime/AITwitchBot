@@ -46,20 +46,19 @@ class TranscriptionServer:
     def bytes_to_float_array(audio_bytes):
         raw_data = np.frombuffer(buffer=audio_bytes, dtype=np.int16)
         return raw_data.astype(np.float32) / 32768.0
-    
+
 
     # Process the audio frames from the stream
     def process_audio_frames(self):
         logging.info("Connecting to stream...")
-                
-        # Initialize the processes
-        streamlink_process = None
-        ffmpeg_process = None
+
+        streamlink_process: subprocess.Popen[bytes]
+        ffmpeg_process: subprocess.Popen[bytes]
         
         try:
             # Run the streamlink command
             streamlink_process = subprocess.Popen(
-                ['streamlink', f'twitch.tv/{self.config.target_channel}', 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
+                ['streamlink', f'twitch.tv/{self.config.target_channel}', 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads'],
                 stdout=subprocess.PIPE)
             
             # Pipe the output to ffmpeg
@@ -131,6 +130,7 @@ class ServeClientFasterWhisper():
         # threading
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
+        self.resume_event = threading.Event()
 
         # Available whisper model sizes
         self.model_sizes = [
@@ -140,6 +140,10 @@ class ServeClientFasterWhisper():
 
         self.config = config
         self.pubsub = pubsub
+
+        # subscribe to pubsub events
+        self.pubsub.subscribe(PubEvents.PAUSE_TRANSCRIPTION, self.pause)
+        self.pubsub.subscribe(PubEvents.RESUME_TRANSCRIPTION, self.resume)
 
         # Check if the model is valid
         if model not in self.model_sizes and not os.path.exists(model):
@@ -162,6 +166,17 @@ class ServeClientFasterWhisper():
     def start(self):
         self.transcription_thread = threading.Thread(target=self.speech_to_text)
         self.transcription_thread.start()
+        self.resume_event.set()
+
+
+    # Pause the transciption thread.
+    def pause(self):
+        self.resume_event.clear()
+
+
+    # Resume the transcription thread.
+    def resume(self):
+        self.resume_event.set()
 
 
     # Stop the transcription thread.
@@ -305,6 +320,10 @@ class ServeClientFasterWhisper():
             if self.frames_np is None:
                 continue
             
+            # if the resume event is not set, wait
+            if not self.resume_event.is_set():
+                self.resume_event.wait()
+
             self.clip_audio_if_no_valid_segment()
 
             # get the next chunk of audio data for processing

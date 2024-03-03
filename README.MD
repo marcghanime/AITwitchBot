@@ -13,7 +13,7 @@
 4. Authenticate with twitch by running `python utils/authentication.py`. It will open a browser window for you to login and authorize the bot.
 
 ## Running
-1. In a different terminal Run `python main.py`
+1. Run `python main.py`
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO

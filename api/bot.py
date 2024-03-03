@@ -37,7 +37,7 @@ class BotAPI:
     # Bot state
     message_count: int = 0
     processed_segment_starts: list = []
-    ignored_message_threshold: int = 75
+    ignored_message_threshold: int = 50
     length_message_threshold: int = 50
 
 
@@ -65,7 +65,7 @@ class BotAPI:
     # Setup constant strings
     def setup_strings(self):
         self.command_help = f"Must be {self.config.target_channel} or a Mod. Commands: timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
-        self.react_string = f"repond or react to the last thing {self.config.target_channel} said based only on the provided live captions and the image for context."
+        self.react_string = f"Respond or react to the last thing {self.config.target_channel} said based only on the live captions and (if provided) the image for context."
 
 
     # Process messages received from the Twitch API

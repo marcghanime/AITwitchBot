@@ -214,8 +214,14 @@ class BotAPI:
 
     # Recognize the song currently playing in the stream
     def recognize_song(self):
+        # Pause transcription for resource optimization
+        self.pubsub.publish(PubEvents.PAUSE_TRANSCRIPTION)
+
         # Get the result from the shazam API
         result = self.shazam_api.detect_song()
+
+        # Resume transcription
+        self.pubsub.publish(PubEvents.RESUME_TRANSCRIPTION)
 
         # Check if the request was successful
         if result == "Error":

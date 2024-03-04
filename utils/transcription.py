@@ -58,7 +58,7 @@ class TranscriptionServer:
         try:
             # Run the streamlink command
             streamlink_process = subprocess.Popen(
-                ['streamlink', f'twitch.tv/{self.config.target_channel}', 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads'],
+                ['streamlink', f'twitch.tv/{self.config.target_channel}', 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
                 stdout=subprocess.PIPE)
             
             # Pipe the output to ffmpeg

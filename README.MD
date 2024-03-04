@@ -5,6 +5,7 @@
 
 ## Requirements
 - Python 3.11+ [Download](https://www.python.org/downloads/)
+- ffmpeg [Get](https://www.ffmpeg.org/download.html)
 
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
@@ -17,7 +18,6 @@
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
-- [ ] optimize transciprt generation
 - [ ] Fix empty captions if there is no activity
 - [ ] Fix slow mode
 - [ ] Use environment variables for config

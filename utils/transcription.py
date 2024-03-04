@@ -349,6 +349,9 @@ class ServeClientFasterWhisper():
                 logging.error(f"[ERROR]: Failed to transcribe audio chunk: {e}")
                 time.sleep(0.01)
 
+            # Sleep to avoid high CPU usage
+            time.sleep(2.5)
+
         logging.info("[INFO]: Exiting speech to text thread")
 
     

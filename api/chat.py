@@ -207,8 +207,14 @@ class ChatAPI:
         message = f"{username}: {message}"
 
         if with_image:
+            # Pause transcription for resource optimization
+            self.pubsub.publish(PubEvents.PAUSE_TRANSCRIPTION)
+
             # Get a base64 screenshot of the stream
             base64_image = self.image_api.get_base64_screenshot()
+
+            # Resume transcription
+            self.pubsub.publish(PubEvents.RESUME_TRANSCRIPTION)
 
             # Add the message to the conversation with the image
             self.memory.conversations[username].append({

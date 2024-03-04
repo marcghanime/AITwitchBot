@@ -62,7 +62,7 @@ class CLI:
         self.bot_api = BotAPI(self.config, self.pubsub, self.memory, self.twitch_api, self.chat_api)
 
         # Initialize the whisper transcription client and start the transcription
-        self.transcription_server = TranscriptionServer(config=self.config, pubsub=self.pubsub, language="en", model="base.en")
+        self.transcription_server = TranscriptionServer(config=self.config, pubsub=self.pubsub, language="en", model="tiny.en")
         
         # Start the main thread
         self.start()

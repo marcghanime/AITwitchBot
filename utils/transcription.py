@@ -350,7 +350,7 @@ class ServeClientFasterWhisper():
                 time.sleep(0.01)
 
             # Sleep to avoid high CPU usage
-            time.sleep(2.5)
+            time.sleep(5)
 
         logging.info("[INFO]: Exiting speech to text thread")
 

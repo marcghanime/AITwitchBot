@@ -21,10 +21,7 @@
 - [ ] Fix empty captions if there is no activity
 - [ ] Fix slow mode
 - [ ] Use environment variables for config
-- [ ] When environment variables are setup, remove setup.py
-- [ ] Set backend websocket url as an environment variable
-- [ ] Replace prints with propper logging
-- [ ] Better way to run whisper_live backend
+- [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Get prompt extras from twitch about section

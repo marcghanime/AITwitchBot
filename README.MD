@@ -27,8 +27,6 @@
 - [ ] Better way to run whisper_live backend
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
-- [ ] Run it in a k8s cluster
-- [ ] Improve authentication process (with a frontend maybe)
 - [ ] Get prompt extras from twitch about section
 
 ## Config File

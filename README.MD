@@ -26,6 +26,7 @@
 - [ ] Add 7tv emote support
 - [ ] Get prompt extras from twitch about section
 - [ ] Revamp authentication method
+- [ ] Revamp Detection words 
 
 ## Config File
 | Entry | Type | Description |

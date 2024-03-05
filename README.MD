@@ -53,8 +53,6 @@ The following commands are available to **admin**, **streamer** and **mods** via
 + **slowmode [*seconds*]** - sets the slow mode for the bot
 + **banword [*word*]** - ignotes all messages containing the given word
 + **unbanword [*word*]** - unbans the word
-
-The following commands are only available to the **admin**:
 + **op [*message*]** - sends a message in chat as (operator)
 + **set-emt [*count*]** - (**E**ngage **M**essage **T**hreshold) sets the amount of chats the bot will receive before it will engage without being mentioned
 + **set-elmt [*count*]** - sets the minimum length of the message the bot will engage with when EMT is reached

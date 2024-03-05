@@ -25,6 +25,7 @@
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Get prompt extras from twitch about section
+- [ ] Revamp authentication method
 
 ## Config File
 | Entry | Type | Description |

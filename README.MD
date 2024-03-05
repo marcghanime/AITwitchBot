@@ -9,9 +9,8 @@
 
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
-2. For the First time run `python setup.py`. It will create a config file.
-3. Fill out the config file. See [Config File](#config-file) for detailed info.
-4. Authenticate with twitch by running `python utils/authentication.py`. It will open a browser window for you to login and authorize the bot.
+2. Fill out the config file. See [Config File](#config-file) for detailed info.
+3. Authenticate with twitch by running `python utils/authentication.py`. It will open a browser window for you to login and authorize the bot.
 
 ## Running
 1. Run `python main.py`
@@ -27,8 +26,6 @@
 - [ ] Better way to run whisper_live backend
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
-- [ ] Run it in a k8s cluster
-- [ ] Improve authentication process (with a frontend maybe)
 - [ ] Get prompt extras from twitch about section
 
 ## Config File

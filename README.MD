@@ -20,7 +20,6 @@
 ## TODO
 - [ ] Fix empty captions if there is no activity
 - [ ] Fix slow mode
-- [ ] Use environment variables for config
 - [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support

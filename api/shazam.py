@@ -1,17 +1,11 @@
+import os
 import io
 import requests
 import base64
 import subprocess
 
-from utils.models import Config
-
 
 class ShazamAPI:
-    config: Config
-
-    def __init__(self, config: Config):
-        self.config = config
-
     def detect_song(self):
         # record audio from the stream
         bytes = self.record_audio()
@@ -29,7 +23,7 @@ class ShazamAPI:
     def record_audio(self):
         # Run the streamlink command
         streamlink_process = subprocess.Popen(
-            ['streamlink', f'twitch.tv/{self.config.target_channel}', 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
+            ['streamlink', f"twitch.tv/{os.environ['target_channel']}", 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
             stdout=subprocess.PIPE)
         
         # Pipe the output to ffmpeg with 1 channel and 44100 sample rate for 8 seconds
@@ -66,7 +60,7 @@ class ShazamAPI:
         payload = base64_data
         headers = {
             "content-type": "text/plain",
-            "X-RapidAPI-Key": self.config.shazam_api_key,
+            "X-RapidAPI-Key": os.environ["shazam_api_key"],
             "X-RapidAPI-Host": "shazam.p.rapidapi.com"
         }
 

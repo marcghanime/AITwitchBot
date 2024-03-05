@@ -8,7 +8,6 @@ import numpy as np
 from whisper_live.transcriber import WhisperModel
 from faster_whisper.transcribe import TranscriptionInfo, Segment, Iterable
 
-from utils.models import Config
 from utils.pubsub import PubSub, PubEvents
 
 
@@ -16,8 +15,7 @@ logging.basicConfig(level=logging.ERROR)
 
 
 class TranscriptionServer:
-    def __init__(self, config: Config, pubsub: PubSub, language: str, model: str):
-        self.config = config
+    def __init__(self, pubsub: PubSub, language: str, model: str):
         self.pubsub = pubsub
 
         self.stop_event = threading.Event()
@@ -27,7 +25,6 @@ class TranscriptionServer:
 
         # Start the transcription server
         self.client = ServeClientFasterWhisper(
-            config=config,
             pubsub=pubsub,
             language=language,
             model=model,
@@ -58,7 +55,7 @@ class TranscriptionServer:
         try:
             # Run the streamlink command
             streamlink_process = subprocess.Popen(
-                ['streamlink', f'twitch.tv/{self.config.target_channel}', 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
+                ['streamlink', f"twitch.tv/{os.environ['target_channel']}", 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
                 stdout=subprocess.PIPE)
             
             # Pipe the output to ffmpeg
@@ -110,7 +107,7 @@ class TranscriptionServer:
 
 
 class ServeClientFasterWhisper():
-    def __init__(self, config: Config, pubsub: PubSub, language: str = None, model: str = "small.en"):
+    def __init__(self, pubsub: PubSub, language: str = None, model: str = "small.en"):
         # variables
         self.RATE = 16000
         self.frames = b""
@@ -138,7 +135,6 @@ class ServeClientFasterWhisper():
             "medium", "medium.en", "large-v2", "large-v3",
         ]
 
-        self.config = config
         self.pubsub = pubsub
 
         # subscribe to pubsub events

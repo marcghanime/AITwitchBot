@@ -1,3 +1,4 @@
+import os
 import signal
 import threading
 import sys
@@ -42,8 +43,13 @@ class CLI:
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_captions)
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
-        # Load data
+        # Load config from file
         self.config = self.load_config()
+        
+        # Set the environment variables
+        self.set_env(self.config)
+        
+        # Load memory from file
         self.memory = self.load_memory()
 
         # Set the first reaction time to 5 minutes from now
@@ -53,16 +59,16 @@ class CLI:
         self.add_mistakes_to_detection_words()
 
         # Twitch API
-        self.twitch_api = TwitchAPI(self.config, self.pubsub)
+        self.twitch_api = TwitchAPI(self.pubsub)
 
         # Chat API
-        self.chat_api = ChatAPI(self.config, self.pubsub, self.memory)
+        self.chat_api = ChatAPI(self.pubsub, self.memory)
         
         # Bot API
-        self.bot_api = BotAPI(self.config, self.pubsub, self.memory, self.twitch_api, self.chat_api)
+        self.bot_api = BotAPI(self.pubsub, self.memory, self.twitch_api, self.chat_api)
 
         # Initialize the whisper transcription client and start the transcription
-        self.transcription_server = TranscriptionServer(config=self.config, pubsub=self.pubsub, language="en", model="tiny.en")
+        self.transcription_server = TranscriptionServer(self.pubsub, language="en", model="tiny.en")
         
         # Start the main thread
         self.start()
@@ -120,6 +126,14 @@ class CLI:
                 self.config.detection_words[index + 1: index + 1] = wrong_words
 
 
+    # Set the environment variables
+    def set_env(self, config: Config):
+        # For each key, value pair in the config, set them as environment variables
+        for key, value in dataclasses.asdict(config).items():
+            os.environ[key] = str(value)
+
+
+    # Load the config file
     def load_config(self) -> Config:
         try:
             with open("config.json", "r") as infile:
@@ -137,11 +151,18 @@ class CLI:
             sys.exit(0)
 
 
+    # Save the config file
     def save_config(self) -> None:
+        # update the config form the environment variables
+        for key, value in os.environ.items():
+            if key in dataclasses.fields(Config):
+                setattr(self.config, key, value)
+
         with open("config.json", "w") as outfile:
             json.dump(dataclasses.asdict(self.config), outfile, indent=4)
 
 
+    # Load the memory file
     def load_memory(self) -> Memory:
         try:
             with open("memory.json", "r") as infile:
@@ -158,6 +179,7 @@ class CLI:
                 return loaded_memory
 
 
+    # Save the memory file
     def save_memory(self) -> None:
         memory = self.chat_api.memory
         with open("memory.json", "w") as outfile:

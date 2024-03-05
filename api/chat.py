@@ -1,3 +1,4 @@
+import os
 import json
 import time
 from typing import List
@@ -5,12 +6,11 @@ from typing import List
 from openai import OpenAI
 
 from api.image import ImageAPI
-from utils.models import Memory, Config, Message
+from utils.models import Memory, Message
 from utils.functions import clean_message, remove_image_messages
 from utils.pubsub import PubSub, PubEvents
 
 class ChatAPI:
-    config: Config
     pubsub: PubSub
     memory: Memory
     openai_api: OpenAI
@@ -33,20 +33,19 @@ class ChatAPI:
         }
     ]
 
-    def __init__(self, config: Config, pubsub: PubSub, memory: Memory):
-        self.config = config
+    def __init__(self, pubsub: PubSub, memory: Memory):
         self.pubsub = pubsub
         self.memory = memory
-        self.openai_api = OpenAI(api_key=config.openai_api_key)
-        self.image_api = ImageAPI(config)
+        self.openai_api = OpenAI(api_key=os.environ["openai_api_key"])
+        self.image_api = ImageAPI()
 
         # Subscribe to events
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_transcript)
         self.pubsub.subscribe(PubEvents.CHAT_HISTORY, self.update_twitch_chat_history)
 
 
-        self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {self.config.admin_username}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. Don't put usernames in your messages. The following are some info about the stream: "
-        self.prompt += self.config.prompt_extras
+        self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {os.environ['admin_username']}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. Don't put usernames in your messages. The following are some info about the stream: "
+        self.prompt += os.environ["prompt_extras"]
 
 
     # Callback for the chat history event
@@ -81,7 +80,7 @@ class ChatAPI:
             response = self.openai_api.chat.completions.create(
                 model="gpt-3.5-turbo-1106",
                 messages=self.memory.conversations[username],
-                max_tokens=self.config.openai_api_max_tokens_response,
+                max_tokens=int(os.environ["openai_api_max_tokens_response"]),
                 functions=self.functions
             )
 
@@ -94,7 +93,7 @@ class ChatAPI:
 
             # Check if the response contains a message
             elif choice.message.content:
-                response_text = clean_message(choice.message.content, username, choice.finish_reason, self.config.bot_username)
+                response_text = clean_message(choice.message.content, username, choice.finish_reason, os.environ["bot_username"])
             
             # Add the response to the conversation
             self.add_response_to_conversation(username, response_text)
@@ -285,7 +284,7 @@ class ChatAPI:
         response = self.openai_api.chat.completions.create(
             model="gpt-4-vision-preview",
             messages=self.memory.conversations[chat_message.username],
-            max_tokens=self.config.openai_api_max_tokens_response
+            max_tokens=int(os.environ["openai_api_max_tokens_response"])
         )
 
         return response.choices[0].message.content

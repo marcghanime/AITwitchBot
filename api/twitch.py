@@ -115,15 +115,19 @@ class TwitchAPI:
             pool.submit(lambda:asyncio.run(self.twitch.send_whisper(self.bot_user.id, user.id, message)))
 
 
-    # Get stream information
-    async def get_stream_info(self):
+    # Get about section of target channel using the get_stream_info function
+    def get_about_section(self):
+        with ThreadPoolExecutor() as pool:
+            target_channel: TwitchUser = pool.submit(lambda:asyncio.run(self.get_channel_info())).result()
+            return target_channel.description
+
+
+    # Get channel information
+    async def get_channel_info(self):
         # Get channel
         target_channel = await first(self.twitch.get_users(logins=[self.config.target_channel]))
 
-        # Get stream
-        stream = await first(self.twitch.get_streams(user_id=target_channel.id))
-
-        return stream
+        return target_channel
 
 
     # Authenticate Twitch API

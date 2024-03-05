@@ -9,6 +9,7 @@
 
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
+2. If no `config.json` file is present in root, run `python main.py` to create one.
 2. Fill out the config file. See [Config File](#config-file) for detailed info.
 3. Authenticate with twitch by running `python utils/authentication.py`. It will open a browser window for you to login and authorize the bot.
 
@@ -20,10 +21,7 @@
 - [ ] Fix empty captions if there is no activity
 - [ ] Fix slow mode
 - [ ] Use environment variables for config
-- [ ] When environment variables are setup, remove setup.py
-- [ ] Set backend websocket url as an environment variable
-- [ ] Replace prints with propper logging
-- [ ] Better way to run whisper_live backend
+- [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Get prompt extras from twitch about section
@@ -55,8 +53,6 @@ The following commands are available to **admin**, **streamer** and **mods** via
 + **slowmode [*seconds*]** - sets the slow mode for the bot
 + **banword [*word*]** - ignotes all messages containing the given word
 + **unbanword [*word*]** - unbans the word
-
-The following commands are only available to the **admin**:
 + **op [*message*]** - sends a message in chat as (operator)
 + **set-emt [*count*]** - (**E**ngage **M**essage **T**hreshold) sets the amount of chats the bot will receive before it will engage without being mentioned
 + **set-elmt [*count*]** - sets the minimum length of the message the bot will engage with when EMT is reached

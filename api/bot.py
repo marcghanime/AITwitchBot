@@ -309,14 +309,14 @@ class BotAPI:
         elif input.startswith("set-elmt "):
             self.length_message_threshold = int(input.split(" ")[1])
 
-        # test-msg <message> - sends a message as the test user
+        # test-msg <message> - sends a message as the test user to the LLM
         elif input.startswith("test-msg "):
             username = "testuser"
             message = input.split(" ", 1)[1]
             chat_message = Message(username=username, text=message)
             self.send_response(chat_message)
 
-        # add-det-word <word> - adds a word to the detection words
+        # add-det-word <word> - adds a word to the verbal detection words
         elif input.startswith("add-det-word "):
             word = input.split(" ", 1)[1]
             self.config.detection_words.append(word)
@@ -330,6 +330,11 @@ class BotAPI:
             chat_message = Message(username=self.config.target_channel, text=self.react_string)
             self.send_response(chat_message, react=True)
             self.memory.reaction_time = time.time() + random.randint(300, 600)
+
+        # exit - shuts down the bot
+        elif input == ("exit"):
+            self.twitch_api.send_whisper(whisper.user, "Shutting down...")
+            self.pubsub.publish(PubEvents.SHUTDOWN)
         
         # command not found
         else:

@@ -1,0 +1,15 @@
+{
+    "target_channel": "",
+    "bot_username": "",
+    "admin_username": "",
+    "twitch_api_client_id": "",
+    "twitch_api_client_secret": "",
+    "twitch_user_token": "",
+    "twitch_user_refresh_token": "",
+    "openai_api_key": "",
+    "openai_api_max_tokens_total": 16000,
+    "openai_api_max_tokens_response": 300,
+    "shazam_api_key": "",
+    "prompt_extras": "",
+    "detection_words": []
+}

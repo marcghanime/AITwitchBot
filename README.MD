@@ -9,6 +9,7 @@
 
 ## Setup
 1. Install the requirements `pip install -r requirements.txt`
+2. If no `config.json` file is present in root, run `python main.py` to create one.
 2. Fill out the config file. See [Config File](#config-file) for detailed info.
 3. Authenticate with twitch by running `python utils/authentication.py`. It will open a browser window for you to login and authorize the bot.
 

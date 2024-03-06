@@ -1,4 +1,10 @@
+import os
 import re
+import sys
+import json
+import dataclasses
+
+from utils.models import Config, Memory
 
 # Remove quotations from the message
 def remove_quotations(text: str):
@@ -62,3 +68,62 @@ def remove_image_messages(messages: list):
     )]
 
     return filtered_messages
+
+
+# Set the environment variables
+def set_environ(config: Config):
+    # For each key, value pair in the config, set them as environment variables
+    for key, value in dataclasses.asdict(config).items():
+        os.environ[key] = str(value)
+
+
+# Load config from json file
+def load_config() -> Config:
+    try:
+        with open("config.json", "r") as infile:
+            json_data = json.load(infile)
+            loaded_config = Config(**json_data)
+            return loaded_config
+
+    except FileNotFoundError:
+        print("Config file not found. Creating new config file...")
+
+        with open("config.json", "w") as outfile:
+            json.dump(dataclasses.asdict(Config()), outfile, indent=4)
+
+        print("Please fill out the config file and restart the bot.")
+        sys.exit(0)
+
+
+# Save config to json file
+def save_config(config: Config) -> None:
+    # update the config form the environment variables
+    for key, value in os.environ.items():
+        if key in dataclasses.fields(Config):
+            setattr(config, key, value)
+
+    with open("config.json", "w") as outfile:
+        json.dump(dataclasses.asdict(config), outfile, indent=4)
+
+
+# Load memory from json file
+def load_memory() -> Memory:
+    try:
+        with open("memory.json", "r") as infile:
+            json_data = json.load(infile)
+            loaded_memory = Memory(**json_data)
+            return loaded_memory
+
+    except FileNotFoundError:
+        with open("memory.json", "w") as outfile:
+            json.dump(dataclasses.asdict(Memory()), outfile, indent=4)
+        with open("memory.json", "r") as infile:
+            json_data = json.load(infile)
+            loaded_memory = Memory(**json_data)
+            return loaded_memory
+
+
+# Save memory to json file
+def save_memory(memory: Memory) -> None:
+    with open("memory.json", "w") as outfile:
+        json.dump(dataclasses.asdict(memory), outfile, indent=4)

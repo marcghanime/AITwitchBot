@@ -1,18 +1,15 @@
-import os
+import time
 import signal
 import threading
-import sys
-import json
-import time
-import dataclasses
 
+from api.bot import BotAPI
 from api.chat import ChatAPI
 from api.twitch import TwitchAPI
-from api.bot import BotAPI
 
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
 from utils.transcription import TranscriptionServer
+from utils.functions import load_config, save_config, load_memory, save_memory, set_environ
 
 
 class CLI:
@@ -40,13 +37,13 @@ class CLI:
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
         # Load config from file
-        self.config = self.load_config()
+        self.config = load_config()
         
         # Set the environment variables
-        self.set_env(self.config)
+        set_environ(self.config)
         
         # Load memory from file
-        self.memory = self.load_memory()
+        self.memory = load_memory()
 
         # Set the first reaction time to 5 minutes from now
         self.memory.reaction_time = time.time() + 300
@@ -106,80 +103,21 @@ class CLI:
         self.audio_captions = transcript_text
 
 
-    # Set the environment variables
-    def set_env(self, config: Config):
-        # For each key, value pair in the config, set them as environment variables
-        for key, value in dataclasses.asdict(config).items():
-            os.environ[key] = str(value)
-
-
-    # Load the config file
-    def load_config(self) -> Config:
-        try:
-            with open("config.json", "r") as infile:
-                json_data = json.load(infile)
-                loaded_config = Config(**json_data)
-                return loaded_config
-
-        except FileNotFoundError:
-            print("Config file not found. Creating new config file...")
-
-            with open("config.json", "w") as outfile:
-                json.dump(dataclasses.asdict(Config()), outfile, indent=4)
-
-            print("Please fill out the config file and restart the bot.")
-            sys.exit(0)
-
-
-    # Save the config file
-    def save_config(self) -> None:
-        # update the config form the environment variables
-        for key, value in os.environ.items():
-            if key in dataclasses.fields(Config):
-                setattr(self.config, key, value)
-
-        with open("config.json", "w") as outfile:
-            json.dump(dataclasses.asdict(self.config), outfile, indent=4)
-
-
-    # Load the memory file
-    def load_memory(self) -> Memory:
-        try:
-            with open("memory.json", "r") as infile:
-                json_data = json.load(infile)
-                loaded_memory = Memory(**json_data)
-                return loaded_memory
-
-        except FileNotFoundError:
-            with open("memory.json", "w") as outfile:
-                json.dump(dataclasses.asdict(Memory()), outfile, indent=4)
-            with open("memory.json", "r") as infile:
-                json_data = json.load(infile)
-                loaded_memory = Memory(**json_data)
-                return loaded_memory
-
-
-    # Save the memory file
-    def save_memory(self) -> None:
-        memory = self.chat_api.memory
-        with open("memory.json", "w") as outfile:
-            json.dump(dataclasses.asdict(memory), outfile, indent=4)
-
-
+    # Shutdown handler for when a shutdown signal is received
     def shutdown_handler(self, *args, **kwargs):
         print('[INFO]: Shutting down...')
         self.pubsub.publish(PubEvents.SHUTDOWN)
 
-
+    # Shutdown the main thread and save the config and memory
     def shutdown(self):
         print('[INFO]: Stopping main thread...')
         self.stop_event.set()
         
         print('[INFO]: Saving config...')
-        self.save_config()
+        save_config(self.config)
 
         print('[INFO]: Saving memory...')
-        self.save_memory()
+        save_memory(self.memory)
 
 
 if __name__ == '__main__':

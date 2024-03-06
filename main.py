@@ -14,10 +14,6 @@ from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
 from utils.transcription import TranscriptionServer
 
-TRANSCRIPTION_MISTAKES = {
-    "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
-    "gpt": ["gpc", "gpg", "gbc", "gbt", "shupiti"]
-}
 
 class CLI:
     config: Config
@@ -54,9 +50,6 @@ class CLI:
 
         # Set the first reaction time to 5 minutes from now
         self.memory.reaction_time = time.time() + 300
-
-        # Setup
-        self.add_mistakes_to_detection_words()
 
         # Twitch API
         self.twitch_api = TwitchAPI(self.pubsub)
@@ -111,19 +104,6 @@ class CLI:
 
         # Update the captions
         self.audio_captions = transcript_text
-
-
-    # Adds all possible transcription mistakes to the detection words
-    def add_mistakes_to_detection_words(self):
-        for correct, wrong_list in TRANSCRIPTION_MISTAKES.items():
-            word_list = filter(lambda x: correct in x, self.config.detection_words)
-            for word in word_list:
-                index = self.config.detection_words.index(word)
-                wrong_words = list(
-                    map(lambda wrong: word.replace(correct, wrong), wrong_list))
-                wrong_words = list(
-                    filter(lambda word: word not in self.config.detection_words, wrong_words))
-                self.config.detection_words[index + 1: index + 1] = wrong_words
 
 
     # Set the environment variables

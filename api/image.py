@@ -1,21 +1,15 @@
 import io
+import os
 import subprocess
 import base64
 
-from utils.models import Config
 
 class ImageAPI:
-    config: Config
-
-    def __init__(self, config: Config):
-        self.config = config
-    
-
     # Take screenshot of twitch stream
     def take_screenshot(self) -> io.BytesIO:       
         # Run the streamlink command
         streamlink_process = subprocess.Popen(
-            ['streamlink', f'twitch.tv/{self.config.target_channel}', 'best', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
+            ['streamlink', f"twitch.tv/{os.environ['target_channel']}", 'best', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
             stdout=subprocess.PIPE)
 
         # Pipe the output to ffmpeg

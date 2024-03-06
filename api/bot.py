@@ -1,12 +1,14 @@
+import os
 import time
 import random
 
-from api.twitch import TwitchAPI
 from api.chat import ChatAPI
 from api.shazam import ShazamAPI
-from utils.models import Config, Memory, Message
-from utils.functions import check_banned_words
+from api.twitch import TwitchAPI
+
+from utils.models import Memory, Message
 from utils.pubsub import PubSub, PubEvents
+from utils.functions import check_banned_words
 
 from twitchAPI.chat import WhisperEvent, ChatUser
 
@@ -23,7 +25,6 @@ BOT_FUNCTIONS = [
 ]
 
 class BotAPI:
-    config: Config
     pubsub: PubSub
     memory: Memory
     twitch_api: TwitchAPI
@@ -41,13 +42,17 @@ class BotAPI:
     length_message_threshold: int = 50
 
 
-    def __init__(self, config: Config, pubsub: PubSub, memory: Memory, twitch_api: TwitchAPI, chat_api: ChatAPI):
-        self.config = config
+    def __init__(self, pubsub: PubSub, memory: Memory):
         self.pubsub = pubsub
         self.memory = memory
-        self.twitch_api = twitch_api
-        self.chat_api = chat_api
-        self.shazam_api = ShazamAPI(config)
+
+        # Set the first reaction time to 5 minutes from now
+        self.memory.reaction_time = time.time() + 300
+
+        # Initialize APIs
+        self.twitch_api = TwitchAPI(self.pubsub)
+        self.chat_api = ChatAPI(self.pubsub, self.memory)
+        self.shazam_api = ShazamAPI()
 
         # Subscribe to events
         self.pubsub.subscribe(PubEvents.CHAT_MESSAGE, self.process_message)
@@ -64,8 +69,8 @@ class BotAPI:
 
     # Setup constant strings
     def setup_strings(self):
-        self.command_help = f"Must be {self.config.target_channel} or a Mod. Commands: timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
-        self.react_string = f"Respond or react to the last thing {self.config.target_channel} said based only on the live captions and (if provided) the image for context."
+        self.command_help = f"Must be {os.environ['target_channel']} or a Mod. Commands: timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
+        self.react_string = f"Respond or react to the last thing {os.environ['target_channel']} said based only on the live captions and (if provided) the image for context."
 
 
     # Process messages received from the Twitch API
@@ -88,7 +93,7 @@ class BotAPI:
             self.memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
 
         elif self.engage(message) and self.moderation(username):
-            chat_message.text = f"@{self.config.target_channel} {message}"
+            chat_message.text = f"@{os.environ['target_channel']} {message}"
             self.send_response(chat_message)
             if self.memory.slow_mode_seconds > 0:
                 time.sleep(self.memory.slow_mode_seconds)
@@ -99,7 +104,7 @@ class BotAPI:
 
     # Check if the user has the privilege to use special commands
     def has_priviege(self, user: ChatUser) -> bool:
-        return user.mod or user.name == self.config.target_channel.lower() or user.name == self.config.admin_username.lower()    
+        return user.mod or user.name == os.environ["target_channel"].lower() or user.name == os.environ["admin_username"].lower()    
 
 
     # Send the intro message
@@ -128,7 +133,7 @@ class BotAPI:
 
     # Check if the bot was mentioned in the message
     def mentioned(self, username: str, message: str) -> bool:
-        return username != self.config.bot_username.lower() and self.config.bot_username.lower() in message.lower()
+        return username != os.environ["bot_username"].lower() and os.environ["bot_username"].lower() in message.lower()
 
 
     # Check if the bot should engage
@@ -183,13 +188,13 @@ class BotAPI:
         # loop through the transcript except the last two segments
         for segment in transcript[:-2]:
             # check if the bot was mentioned
-            if self.mentioned(self.config.target_channel, segment['text']):
+            if self.mentioned(os.environ["target_channel"], segment['text']):
                 # get all the text from the transcript
                 captions = "".join([segment['text'] for segment in transcript[:-2]])
 
                 # send a response to the chat
-                message = f"{self.config.target_channel} talked to/about you ({self.config.bot_username}) in the following captions: '{captions}' only respond to what they said to/about you ({self.config.bot_username})"
-                chat_message = Message(self.config.target_channel, message)
+                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the following captions: '{captions}' only respond to what they said to/about you ({os.environ['bot_username']})"
+                chat_message = Message(os.environ["target_channel"], message)
                 self.send_response(chat_message, respond=True)
                 
                 # add the start time to the processed list
@@ -319,7 +324,9 @@ class BotAPI:
         # add-det-word <word> - adds a word to the verbal detection words
         elif input.startswith("add-det-word "):
             word = input.split(" ", 1)[1]
-            self.config.detection_words.append(word)
+            detection_words = os.environ["detection_words"].strip("[").strip("]").split(",")
+            detection_words.append(word)
+            os.environ["detection_words"] = f"[{','.join(detection_words)}]"
 
         # send-intro - sends the intro message
         elif input == ("intro"):
@@ -327,7 +334,7 @@ class BotAPI:
 
         # react - manually trigger a reaction
         elif input == ("react"):   
-            chat_message = Message(username=self.config.target_channel, text=self.react_string)
+            chat_message = Message(username=os.environ["target_channel"], text=self.react_string)
             self.send_response(chat_message, react=True)
             self.memory.reaction_time = time.time() + random.randint(300, 600)
 

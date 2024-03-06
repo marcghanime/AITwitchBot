@@ -1,34 +1,22 @@
+import time
 import signal
 import threading
-import sys
-import json
-import time
-import dataclasses
 
-from api.chat import ChatAPI
-from api.twitch import TwitchAPI
 from api.bot import BotAPI
 
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
 from utils.transcription import TranscriptionServer
+from utils.functions import load_config, save_config, load_memory, save_memory, set_environ
 
-TRANSCRIPTION_MISTAKES = {
-    "libs": ["lips", "looks", "lib's", "lib", "lipsh"],
-    "gpt": ["gpc", "gpg", "gbc", "gbt", "shupiti"]
-}
 
 class CLI:
     config: Config
     memory: Memory
     pubsub: PubSub
-
-    twitch_api: TwitchAPI
-    chat_api: ChatAPI
     bot_api: BotAPI
 
     stop_event = threading.Event()
-
     audio_captions: str = ""
 
     def __init__(self):
@@ -38,31 +26,24 @@ class CLI:
         # Create the PubSub
         self.pubsub = PubSub()
 
-        # Subscribe to the transcript event
+        # Subscribe to events
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_captions)
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
-        # Load data
-        self.config = self.load_config()
-        self.memory = self.load_memory()
-
-        # Set the first reaction time to 5 minutes from now
-        self.memory.reaction_time = time.time() + 300
-
-        # Setup
-        self.add_mistakes_to_detection_words()
-
-        # Twitch API
-        self.twitch_api = TwitchAPI(self.config, self.pubsub)
-
-        # Chat API
-        self.chat_api = ChatAPI(self.config, self.pubsub, self.memory)
+        # Load config from file
+        self.config = load_config()
         
-        # Bot API
-        self.bot_api = BotAPI(self.config, self.pubsub, self.memory, self.twitch_api, self.chat_api)
+        # Set the environment variables
+        set_environ(self.config)
+        
+        # Load memory from file
+        self.memory = load_memory()
+        
+        # Initialize the bot API
+        self.bot_api = BotAPI(self.pubsub, self.memory)
 
-        # Initialize the whisper transcription client and start the transcription
-        self.transcription_server = TranscriptionServer(config=self.config, pubsub=self.pubsub, language="en", model="tiny.en")
+        # Initialize the whisper transcription server and start the transcription
+        self.transcription_server = TranscriptionServer(self.pubsub, language="en", model="tiny.en")
         
         # Start the main thread
         self.start()
@@ -107,77 +88,22 @@ class CLI:
         self.audio_captions = transcript_text
 
 
-    # Adds all possible transcription mistakes to the detection words
-    def add_mistakes_to_detection_words(self):
-        for correct, wrong_list in TRANSCRIPTION_MISTAKES.items():
-            word_list = filter(lambda x: correct in x, self.config.detection_words)
-            for word in word_list:
-                index = self.config.detection_words.index(word)
-                wrong_words = list(
-                    map(lambda wrong: word.replace(correct, wrong), wrong_list))
-                wrong_words = list(
-                    filter(lambda word: word not in self.config.detection_words, wrong_words))
-                self.config.detection_words[index + 1: index + 1] = wrong_words
-
-
-    def load_config(self) -> Config:
-        try:
-            with open("config.json", "r") as infile:
-                json_data = json.load(infile)
-                loaded_config = Config(**json_data)
-                return loaded_config
-
-        except FileNotFoundError:
-            print("Config file not found. Creating new config file...")
-
-            with open("config.json", "w") as outfile:
-                json.dump(dataclasses.asdict(Config()), outfile, indent=4)
-
-            print("Please fill out the config file and restart the bot.")
-            sys.exit(0)
-
-
-    def save_config(self) -> None:
-        with open("config.json", "w") as outfile:
-            json.dump(dataclasses.asdict(self.config), outfile, indent=4)
-
-
-    def load_memory(self) -> Memory:
-        try:
-            with open("memory.json", "r") as infile:
-                json_data = json.load(infile)
-                loaded_memory = Memory(**json_data)
-                return loaded_memory
-
-        except FileNotFoundError:
-            with open("memory.json", "w") as outfile:
-                json.dump(dataclasses.asdict(Memory()), outfile, indent=4)
-            with open("memory.json", "r") as infile:
-                json_data = json.load(infile)
-                loaded_memory = Memory(**json_data)
-                return loaded_memory
-
-
-    def save_memory(self) -> None:
-        memory = self.chat_api.memory
-        with open("memory.json", "w") as outfile:
-            json.dump(dataclasses.asdict(memory), outfile, indent=4)
-
-
+    # Shutdown handler for when a shutdown signal is received
     def shutdown_handler(self, *args, **kwargs):
         print('[INFO]: Shutting down...')
         self.pubsub.publish(PubEvents.SHUTDOWN)
 
 
+    # Shutdown the main thread and save the config and memory
     def shutdown(self):
         print('[INFO]: Stopping main thread...')
         self.stop_event.set()
         
         print('[INFO]: Saving config...')
-        self.save_config()
+        save_config(self.config)
 
         print('[INFO]: Saving memory...')
-        self.save_memory()
+        save_memory(self.memory)
 
 
 if __name__ == '__main__':

@@ -8,7 +8,6 @@ import numpy as np
 from whisper_live.transcriber import WhisperModel
 from faster_whisper.transcribe import TranscriptionInfo, Segment, Iterable
 
-from utils.models import Config
 from utils.pubsub import PubSub, PubEvents
 
 
@@ -16,8 +15,7 @@ logging.basicConfig(level=logging.ERROR)
 
 
 class TranscriptionServer:
-    def __init__(self, config: Config, pubsub: PubSub, language: str, model: str):
-        self.config = config
+    def __init__(self, pubsub: PubSub, language: str, model: str):
         self.pubsub = pubsub
 
         self.stop_event = threading.Event()
@@ -27,7 +25,6 @@ class TranscriptionServer:
 
         # Start the transcription server
         self.client = ServeClientFasterWhisper(
-            config=config,
             pubsub=pubsub,
             language=language,
             model=model,
@@ -58,7 +55,7 @@ class TranscriptionServer:
         try:
             # Run the streamlink command
             streamlink_process = subprocess.Popen(
-                ['streamlink', f'twitch.tv/{self.config.target_channel}', 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
+                ['streamlink', f"twitch.tv/{os.environ['target_channel']}", 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
                 stdout=subprocess.PIPE)
             
             # Pipe the output to ffmpeg
@@ -110,11 +107,12 @@ class TranscriptionServer:
 
 
 class ServeClientFasterWhisper():
-    def __init__(self, config: Config, pubsub: PubSub, language: str = None, model: str = "small.en"):
+    def __init__(self, pubsub: PubSub, language: str = None, model: str = "small.en"):
         # variables
         self.RATE = 16000
         self.frames = b""
         self.timestamp_offset = 0.0
+        self.new_frames_np = None
         self.frames_np = None
         self.frames_offset = 0.0
         self.text = []
@@ -131,6 +129,7 @@ class ServeClientFasterWhisper():
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
         self.resume_event = threading.Event()
+        self.new_frames_event = threading.Event()
 
         # Available whisper model sizes
         self.model_sizes = [
@@ -138,7 +137,6 @@ class ServeClientFasterWhisper():
             "medium", "medium.en", "large-v2", "large-v3",
         ]
 
-        self.config = config
         self.pubsub = pubsub
 
         # subscribe to pubsub events
@@ -186,23 +184,43 @@ class ServeClientFasterWhisper():
 
 
     # Add audio frames to the ongoing audio stream buffer.
-    def add_frames(self, frame_np: np.ndarray, max_buffer_seconds: int = 45):
+    def add_frames(self, frame_np: np.ndarray, max_new_buffer_seconds: int = 5, max_buffer_seconds: int = 45):          
         self.lock.acquire()
 
+        # Initialize the new frames buffer with the provided audio frame
+        if self.new_frames_np is None:
+            self.new_frames_np = frame_np.copy()
+        
+        # Append the audio frame to the new frames buffer
+        else:
+            self.new_frames_np = np.concatenate((self.new_frames_np, frame_np), axis=0)
+
+        # If the new frames buffer is not more than 5 seconds, return
+        if self.new_frames_np.shape[0] < max_new_buffer_seconds * self.RATE:
+            self.lock.release()
+            return
+
         # Check if the buffer size exceeds the threshold
-        if self.frames_np is not None and self.frames_np.shape[0] > max_buffer_seconds*self.RATE:
+        if self.frames_np is not None and self.frames_np.shape[0] > max_buffer_seconds * self.RATE:
             # Discard the oldest 30 seconds of audio data
             self.frames_offset += 30.0
             self.frames_np = self.frames_np[int(30*self.RATE):]
         
-        # Initialize the buffer with the provided audio frame
+        # Initialize the buffer with the new audio frames
         if self.frames_np is None:
-            self.frames_np = frame_np.copy()
+            self.frames_np = self.new_frames_np.copy()
         
-        # Append the audio frame to the buffer
+        # Append the new frames to the buffer
         else:
-            self.frames_np = np.concatenate((self.frames_np, frame_np), axis=0)
+            self.frames_np = np.concatenate((self.frames_np, self.new_frames_np), axis=0)
 
+        # Reset the new frames buffer
+        self.new_frames_np = None
+
+        # Set the new frames event to indicate that enough new frames are available
+        self.new_frames_event.set()
+
+        # Release the lock
         self.lock.release()
 
 
@@ -298,7 +316,7 @@ class ServeClientFasterWhisper():
         segments = []
 
         # if there is output from whisper
-        if len(result):
+        if result is not None and len(result):
             self.t_start = None
             last_segment = self.update_segments(result, duration)
             segments = self.prepare_segments(last_segment)
@@ -320,9 +338,13 @@ class ServeClientFasterWhisper():
             if self.frames_np is None:
                 continue
             
-            # if the resume event is not set, wait
-            if not self.resume_event.is_set():
-                self.resume_event.wait()
+            # if the resume event is not set, wait for max. 5 seconds
+            if not self.resume_event.wait(5):
+                continue
+
+            # if the new frames event is not set, wait for max. 5 seconds
+            if not self.new_frames_event.wait(5):
+                continue
 
             self.clip_audio_if_no_valid_segment()
 
@@ -345,12 +367,13 @@ class ServeClientFasterWhisper():
                 # handle the transcription output
                 self.handle_transcription_output(result, duration)
 
+                # reset the new frames event
+                self.new_frames_event.clear()
+
             except Exception as e:
                 logging.error(f"[ERROR]: Failed to transcribe audio chunk: {e}")
                 time.sleep(0.01)
 
-            # Sleep to avoid high CPU usage
-            time.sleep(5)
 
         logging.info("[INFO]: Exiting speech to text thread")
 

@@ -165,7 +165,7 @@ class ChatAPI:
 
 
     # Generate extra context for the system prompt
-    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: List[str]):
+    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: str):
         twitch_chat_history_string = ""
         caption_string = ""
 
@@ -176,7 +176,7 @@ class ChatAPI:
 
         # Add the audio captions to the prompt
         if len(captions) > 0:
-            caption_string = f" - Audio captions: {' '.join(captions)}"
+            caption_string = f" - Audio captions: {captions}"
 
         # Return the updated prompt
         return self.prompt + caption_string + twitch_chat_history_string

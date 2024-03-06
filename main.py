@@ -3,8 +3,6 @@ import signal
 import threading
 
 from api.bot import BotAPI
-from api.chat import ChatAPI
-from api.twitch import TwitchAPI
 
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
@@ -16,13 +14,9 @@ class CLI:
     config: Config
     memory: Memory
     pubsub: PubSub
-
-    twitch_api: TwitchAPI
-    chat_api: ChatAPI
     bot_api: BotAPI
 
     stop_event = threading.Event()
-
     audio_captions: str = ""
 
     def __init__(self):
@@ -32,7 +26,7 @@ class CLI:
         # Create the PubSub
         self.pubsub = PubSub()
 
-        # Subscribe to the transcript event
+        # Subscribe to events
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_captions)
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
@@ -44,20 +38,11 @@ class CLI:
         
         # Load memory from file
         self.memory = load_memory()
-
-        # Set the first reaction time to 5 minutes from now
-        self.memory.reaction_time = time.time() + 300
-
-        # Twitch API
-        self.twitch_api = TwitchAPI(self.pubsub)
-
-        # Chat API
-        self.chat_api = ChatAPI(self.pubsub, self.memory)
         
-        # Bot API
-        self.bot_api = BotAPI(self.pubsub, self.memory, self.twitch_api, self.chat_api)
+        # Initialize the bot API
+        self.bot_api = BotAPI(self.pubsub, self.memory)
 
-        # Initialize the whisper transcription client and start the transcription
+        # Initialize the whisper transcription server and start the transcription
         self.transcription_server = TranscriptionServer(self.pubsub, language="en", model="tiny.en")
         
         # Start the main thread
@@ -107,6 +92,7 @@ class CLI:
     def shutdown_handler(self, *args, **kwargs):
         print('[INFO]: Shutting down...')
         self.pubsub.publish(PubEvents.SHUTDOWN)
+
 
     # Shutdown the main thread and save the config and memory
     def shutdown(self):

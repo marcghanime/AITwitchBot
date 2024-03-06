@@ -2,12 +2,13 @@ import os
 import time
 import random
 
-from api.twitch import TwitchAPI
 from api.chat import ChatAPI
 from api.shazam import ShazamAPI
+from api.twitch import TwitchAPI
+
 from utils.models import Memory, Message
-from utils.functions import check_banned_words
 from utils.pubsub import PubSub, PubEvents
+from utils.functions import check_banned_words
 
 from twitchAPI.chat import WhisperEvent, ChatUser
 
@@ -41,11 +42,16 @@ class BotAPI:
     length_message_threshold: int = 50
 
 
-    def __init__(self, pubsub: PubSub, memory: Memory, twitch_api: TwitchAPI, chat_api: ChatAPI):
+    def __init__(self, pubsub: PubSub, memory: Memory):
         self.pubsub = pubsub
         self.memory = memory
-        self.twitch_api = twitch_api
-        self.chat_api = chat_api
+
+        # Set the first reaction time to 5 minutes from now
+        self.memory.reaction_time = time.time() + 300
+
+        # Initialize APIs
+        self.twitch_api = TwitchAPI(self.pubsub)
+        self.chat_api = ChatAPI(self.pubsub, self.memory)
         self.shazam_api = ShazamAPI()
 
         # Subscribe to events

@@ -123,7 +123,7 @@ class ServeClientFasterWhisper():
         self.show_prev_out_thresh = 5   # if pause(no output from whisper) show previous output for 5 seconds
         self.add_pause_thresh = 3       # add a blank to segment list as a pause(no speech) for 3 seconds
         self.transcript = []
-        self.send_last_n_segments = 10
+        self.send_last_n_segments = 75
 
         # threading
         self.lock = threading.Lock()

@@ -61,9 +61,6 @@ class ChatAPI:
         # Join the text
         transcript_text = "".join(text)
 
-        # keep the last 250 words
-        transcript_text = " ".join(transcript_text.split()[-250:])
-
         # Update the transcript
         self.audio_transcript = transcript_text
 

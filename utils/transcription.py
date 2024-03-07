@@ -184,7 +184,7 @@ class ServeClientFasterWhisper():
 
 
     # Add audio frames to the ongoing audio stream buffer.
-    def add_frames(self, frame_np: np.ndarray, max_new_buffer_seconds: int = 5, max_buffer_seconds: int = 45):          
+    def add_frames(self, frame_np: np.ndarray, max_new_buffer_seconds: int = 10, max_buffer_seconds: int = 35, min_buffer_seconds: int = 20):          
         self.lock.acquire()
 
         # Initialize the new frames buffer with the provided audio frame
@@ -202,9 +202,9 @@ class ServeClientFasterWhisper():
 
         # Check if the buffer size exceeds the threshold
         if self.frames_np is not None and self.frames_np.shape[0] > max_buffer_seconds * self.RATE:
-            # Discard the oldest 30 seconds of audio data
-            self.frames_offset += 30.0
-            self.frames_np = self.frames_np[int(30*self.RATE):]
+            # Discard the oldest seconds of audio data
+            self.frames_offset += min_buffer_seconds
+            self.frames_np = self.frames_np[int(min_buffer_seconds*self.RATE):]
         
         # Initialize the buffer with the new audio frames
         if self.frames_np is None:

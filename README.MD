@@ -23,7 +23,6 @@
 - [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
-- [ ] Get prompt extras from twitch about section
 - [ ] Revamp authentication method
 - [ ] Revamp Detection words 
 
@@ -41,7 +40,6 @@
 | **openai_api_max_tokens_total** | has a default value | The max tokens for a single request |
 | **openai_api_max_tokens_response** | has a default value | The max tokens for a single response |
 | **shazam_api_key** | must fill | The shazam api key [Get it here](https://rapidapi.com/apidojo/api/shazam) |
-| **prompt_extras** | optional | Extra streamer specific info to be added to the prompt (e.g. the streamers nicknames, age, hobbies, etc.) |
 | **detection_words** | automatically filled | The 'verbal' words that will trigger the bot to respond |
 
 ## Commands 

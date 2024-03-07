@@ -27,11 +27,17 @@ class TwitchAPI:
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
         print("[INFO]: Initializing Twitch API...")
-         
+
+        # Authenticate Twitch API
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.authenticate()))
+        
+        # Initialize twitch chat
         with ThreadPoolExecutor() as pool:
             pool.submit(lambda:asyncio.run(self.init_chat()))
+
+        # Set about section of target channel in environment
+        self.set_channel_description()
 
         print("[INFO]: Twitch API Initialized")
 
@@ -115,10 +121,10 @@ class TwitchAPI:
 
 
     # Get about section of target channel using the get_stream_info function
-    def get_about_section(self):
+    def set_channel_description(self):
         with ThreadPoolExecutor() as pool:
             target_channel: TwitchUser = pool.submit(lambda:asyncio.run(self.get_channel_info())).result()
-            return target_channel.description
+            os.environ["channel_description"] = target_channel.description
 
 
     # Get channel information

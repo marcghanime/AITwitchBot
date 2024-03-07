@@ -43,9 +43,8 @@ class ChatAPI:
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_transcript)
         self.pubsub.subscribe(PubEvents.CHAT_HISTORY, self.update_twitch_chat_history)
 
-
+        # Set the system prompt
         self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {os.environ['admin_username']}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. Don't put usernames in your messages. The following are some info about the stream: "
-        self.prompt += os.environ["prompt_extras"]
 
 
     # Callback for the chat history event
@@ -165,18 +164,23 @@ class ChatAPI:
     def generate_prompt_extras(self, twitch_chat_history: List[str], captions: str):
         twitch_chat_history_string = ""
         caption_string = ""
+        channel_description_string = ""
+
+        # Add the channel description to the prompt
+        if "channel_description" in os.environ.keys():
+            channel_description_string = f"\n- Channel description: {os.environ['channel_description']}"
 
         # Add the twitch chat history to the prompt
         if len(twitch_chat_history) > 0:
             twitch_chat = '\n'.join(twitch_chat_history)
-            twitch_chat_history_string = f" - Twitch chat history: '{twitch_chat}'"
+            twitch_chat_history_string = f"\n- Twitch chat history: '{twitch_chat}'"
 
         # Add the audio captions to the prompt
         if len(captions) > 0:
-            caption_string = f" - Audio captions: {captions}"
+            caption_string = f"\n- Audio captions: {captions}"
 
         # Return the updated prompt
-        return self.prompt + caption_string + twitch_chat_history_string
+        return self.prompt + channel_description_string + caption_string + twitch_chat_history_string
 
 
     # Add the user message to the conversation

@@ -61,9 +61,6 @@ class ChatAPI:
         # Join the text
         transcript_text = "".join(text)
 
-        # keep the last 250 words
-        transcript_text = " ".join(transcript_text.split()[-250:])
-
         # Update the transcript
         self.audio_transcript = transcript_text
 
@@ -78,7 +75,7 @@ class ChatAPI:
         try:
             # Get a response from the AI
             response = self.openai_api.chat.completions.create(
-                model="gpt-3.5-turbo-1106",
+                model="gpt-3.5-turbo",
                 messages=self.memory.conversations[username],
                 max_tokens=int(os.environ["openai_api_max_tokens_response"]),
                 functions=self.functions

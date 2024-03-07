@@ -81,9 +81,6 @@ class CLI:
         # Join the text
         transcript_text = "".join(text)
 
-        # Keep only the last 250 words
-        transcript_text = " ".join(transcript_text.split()[-250:]) 
-
         # Update the captions
         self.audio_captions = transcript_text
 

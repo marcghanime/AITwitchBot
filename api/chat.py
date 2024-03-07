@@ -75,7 +75,7 @@ class ChatAPI:
         try:
             # Get a response from the AI
             response = self.openai_api.chat.completions.create(
-                model="gpt-3.5-turbo-1106",
+                model="gpt-3.5-turbo",
                 messages=self.memory.conversations[username],
                 max_tokens=int(os.environ["openai_api_max_tokens_response"]),
                 functions=self.functions

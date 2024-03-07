@@ -24,7 +24,9 @@
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Revamp authentication method
-- [ ] Revamp Detection words 
+- [ ] Revamp Detection words
+- [ ] Maybe add google or bing search bot function
+- [ ] Add following and other common commands as bot functions
 
 ## Config File
 | Entry | Type | Description |

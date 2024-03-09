@@ -205,16 +205,15 @@ class BotAPI:
 
 
     # Callback for when the ai calls a function
-    def bot_functions_callback(self, function_name: str, chat_message: Message) -> str:
+    def bot_functions_callback(self, function_name: str, chat_message: Message):
         if function_name == "recognize_song":
             self.twitch_api.send_message(f"@{chat_message.username} I'm listening... give me ~10 seconds") 
-            return self.recognize_song()
+            result = self.recognize_song()
+            self.twitch_api.send_message(f"@{chat_message.username} {result}")
         
         elif function_name == "ignore_user":
             self.memory.banned_users.append(chat_message.username)
-            return "I'll ignore you from now on"
-                
-        return "Error"
+            self.twitch_api.send_message(f"@{chat_message.username} I'll ignore you from now on")
     
 
     # Recognize the song currently playing in the stream

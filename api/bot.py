@@ -70,7 +70,7 @@ class BotAPI:
     # Setup constant strings
     def setup_strings(self):
         self.command_help = f"Must be {os.environ['target_channel']} or a Mod. Commands: timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
-        self.react_string = f"Respond or react to the last thing {os.environ['target_channel']} said based only on the live captions and (if provided) the image for context."
+        self.react_string = f"Respond or react to the most recent thing {os.environ['target_channel']} said based only on the audio transcript and (if provided) the image for context."
 
 
     # Process messages received from the Twitch API
@@ -158,14 +158,14 @@ class BotAPI:
             bot_response = f"@{username} Ignored message containing banned word: '{found}'"
         
         elif react:
+            chat_message.username = os.environ["target_channel"]
             ai_response = self.chat_api.get_ai_response_with_image(chat_message)
             if ai_response:
                 bot_response = f"{ai_response}"
                 self.chat_api.clear_user_conversation(username)
 
         elif respond:
-            ai_response = self.chat_api.get_ai_response(
-                chat_message, no_audio_context=True)
+            ai_response = self.chat_api.get_ai_response(chat_message)
             if ai_response:
                 bot_response = f"@{username} {ai_response}"
                 self.chat_api.clear_user_conversation(username)
@@ -185,15 +185,12 @@ class BotAPI:
         # filter out already reacted segments by start time
         transcript = [segment for segment in transcript if segment['start'] not in self.processed_segment_starts]
 
-        # loop through the transcript except the last two segments
-        for segment in transcript[:-2]:
+        # loop through the transcript except the last segment
+        for segment in transcript[:-1]:
             # check if the bot was mentioned
             if self.mentioned(os.environ["target_channel"], segment['text']):
-                # get all the text from the transcript
-                captions = "".join([segment['text'] for segment in transcript[:-2]])
-
                 # send a response to the chat
-                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the following captions: '{captions}' only respond to what they said to/about you ({os.environ['bot_username']})"
+                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the audio transcript. Try to only respond to what they said to/about you ({os.environ['bot_username']})"
                 chat_message = Message(os.environ["target_channel"], message)
                 self.send_response(chat_message, respond=True)
                 

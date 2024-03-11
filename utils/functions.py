@@ -59,15 +59,49 @@ def check_banned_words(message: str, banned_words: list):
     return next((word for word in banned_words if word.lower() in message.lower()), None)
 
 
-# Remove image messages from the messages list
-def remove_image_messages(messages: list):
-    filtered_messages = [msg for msg in messages if not (
-        isinstance(msg.get("content"), list) and any(
-            sub_msg.get("type") == "image_url" for sub_msg in msg["content"]
-        )
-    )]
+# Clean the conversation history
+def clean_conversation(messages: list):
+    messages = remove_old_images(messages)
+    messages = remove_old_contexts(messages)
+    return messages
 
-    return filtered_messages
+
+# Remove image messages from the messages list
+def remove_old_images(messages: list):
+    # iterate through the messages with index
+    for i, message in enumerate(messages):
+        # check if the message content is a list
+        if isinstance(message.get("content"), list):
+            # iterate through the sub messages
+            for sub_message in message["content"]:
+                # get the text from the sub message
+                if sub_message.get("type") == "text":
+                    # update the message content in the messages list
+                    messages[i]["content"] = sub_message["text"]
+                    break
+                
+    return messages
+
+
+# Remove old contexts from the messages list (context is between two delimiter messages <<context>> <</context>>)
+def remove_old_contexts(messages: list):
+    # iterate through the messages with index
+    for i, message in enumerate(messages):
+        # skip system messages
+        role = message.get("role") 
+        if role == "system":
+            continue
+
+        # get the message content
+        text = message.get("content")
+
+        # use regex to find and remove the context
+        text = re.sub(r"<<context>>.*<</context>>", "", text, flags=re.DOTALL)
+
+        # update the message content in the messages list
+        messages[i]["content"] = text
+
+    return messages
 
 
 # Set the environment variables

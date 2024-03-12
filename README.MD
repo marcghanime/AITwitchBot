@@ -18,13 +18,11 @@
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
-- [ ] Fix empty captions if there is no activity
 - [ ] Fix slow mode
 - [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Revamp authentication method
-- [ ] Revamp Detection words
 - [ ] Maybe add google or bing search bot function
 - [ ] Add following and other common commands as bot functions
 
@@ -42,7 +40,6 @@
 | **openai_api_max_tokens_total** | has a default value | The max tokens for a single request |
 | **openai_api_max_tokens_response** | has a default value | The max tokens for a single response |
 | **shazam_api_key** | must fill | The shazam api key [Get it here](https://rapidapi.com/apidojo/api/shazam) |
-| **detection_words** | automatically filled | The 'verbal' words that will trigger the bot to respond |
 
 ## Commands 
 The following commands are available to **admin**, **streamer** and **mods** via twitch whispers to the bot:
@@ -59,6 +56,5 @@ The following commands are available to **admin**, **streamer** and **mods** via
 + **set-elmt [*count*]** - sets the minimum length of the message the bot will engage with when EMT is reached
 + **test-msg [*message*]** - sends a message to the OpenAI model to test the response
 + **intro** - sends the intro message to chat
-+ **add-det-word [*word*]** - adds word to the list of verbal mention keywords
 + **react** - trigger a reaction from the bot
 + **exit** - exits the script

@@ -190,8 +190,12 @@ class BotAPI:
             # check if the bot was mentioned
             if self.mentioned(os.environ["target_channel"], segment['text']):
                 # send a response to the chat
-                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the audio transcript. Try to only respond to what they said to/about you ({os.environ['bot_username']})"
+                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the audio transcript. Try to only respond/react to what they said to/about you."
+                
+                # create a placeholder chat message 
                 chat_message = Message(os.environ["target_channel"], message)
+
+                # send a response to the chat
                 self.send_response(chat_message, respond=True)
                 
                 # add the start time to the processed list
@@ -316,13 +320,6 @@ class BotAPI:
             message = input.split(" ", 1)[1]
             chat_message = Message(username=username, text=message)
             self.send_response(chat_message)
-
-        # add-det-word <word> - adds a word to the verbal detection words
-        elif input.startswith("add-det-word "):
-            word = input.split(" ", 1)[1]
-            detection_words = os.environ["detection_words"].strip("[").strip("]").split(",")
-            detection_words.append(word)
-            os.environ["detection_words"] = f"[{','.join(detection_words)}]"
 
         # send-intro - sends the intro message
         elif input == ("intro"):

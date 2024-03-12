@@ -14,7 +14,6 @@ class Config:
     openai_api_max_tokens_total: int = 4096
     openai_api_max_tokens_response: int = 200
     shazam_api_key: str = ""
-    detection_words: list = field(default_factory=list)
 
 
 @dataclass

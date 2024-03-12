@@ -7,7 +7,7 @@ from openai import OpenAI
 
 from api.image import ImageAPI
 from utils.models import Memory, Message
-from utils.functions import clean_message, remove_image_messages
+from utils.functions import clean_message, clean_conversation
 from utils.pubsub import PubSub, PubEvents
 
 class ChatAPI:
@@ -15,7 +15,7 @@ class ChatAPI:
     memory: Memory
     openai_api: OpenAI
     image_api: ImageAPI
-    prompt: str
+    system_prompt: str
 
     audio_transcript: str = ""
     twitch_chat_history: List[str] = []
@@ -44,7 +44,7 @@ class ChatAPI:
         self.pubsub.subscribe(PubEvents.CHAT_HISTORY, self.update_twitch_chat_history)
 
         # Set the system prompt
-        self.prompt = f"You are an AI twitch chatter, you can hear the stream through the given audio captions and you can see the stream through the given image (if not mentioned just use it as context). You can also identify songs by using the shazam API. You were created by {os.environ['admin_username']}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. Don't put usernames in your messages. The following are some info about the stream: "
+        self.system_prompt = f"You are an AI twitch bot, you can hear the stream through the given audio captions and you can see the stream through the given screenshot (if not mentioned just use them as context). You can also identify songs by using the shazam API. You were created by the user {os.environ['admin_username']}. Keep your messages short and under 20 words. Be non verbose, sweet and sometimes funny. For context some information about the stream are given between the two <<context>> <</context>> delimiters with each message."
 
 
     # Callback for the chat history event
@@ -65,18 +65,18 @@ class ChatAPI:
 
 
     # Get a response from the AI
-    def get_ai_response(self, chat_message: Message, no_twitch_chat: bool = False, no_audio_context: bool = False):
+    def get_ai_response(self, chat_message: Message):
         username = chat_message.username
 
         # Add the user message to the conversation
-        self.add_user_message(chat_message, no_twitch_chat=no_twitch_chat, no_audio_context=no_audio_context)
+        self.create_user_message(chat_message, with_twitch_chat=True, with_audio_transcript=True, with_image=False)
 
         try:
-            # Get a response from the AI
+            # Get a response from the AI with the users conversation
             response = self.openai_api.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=self.memory.conversations[username],
-                max_tokens=int(os.environ["openai_api_max_tokens_response"]),
+                max_tokens=300,
                 functions=self.functions
             )
 
@@ -146,24 +146,20 @@ class ChatAPI:
         self.memory.conversations[username] = [
             {
                 "role": "system",
-                "content": self.prompt
+                "content": self.system_prompt
             }
         ]
 
 
     # Update the system prompt
-    def update_prompt(self, username: str, no_twitch_chat: bool, no_audio_context: bool):
-        twitch_chat_history = [] if no_twitch_chat else self.twitch_chat_history
-        captions = "" if no_audio_context else self.audio_transcript
-
-        new_prompt = self.generate_prompt_extras(twitch_chat_history, captions)
-        self.memory.conversations[username][0]["content"] = new_prompt
+    def update_system_prompt(self, username: str):
+        self.memory.conversations[username][0]["content"] = self.system_prompt
 
 
-    # Generate extra context for the system prompt
-    def generate_prompt_extras(self, twitch_chat_history: List[str], captions: str):
+    # Generate extra context for the message prompt
+    def generate_prompt_context(self, with_twitch_chat: bool, with_audio_transcript: bool):
         twitch_chat_history_string = ""
-        caption_string = ""
+        transcript_string = ""
         channel_description_string = ""
 
         # Add the channel description to the prompt
@@ -171,25 +167,25 @@ class ChatAPI:
             channel_description_string = f"\n- Channel description: {os.environ['channel_description']}"
 
         # Add the twitch chat history to the prompt
-        if len(twitch_chat_history) > 0:
-            twitch_chat = '\n'.join(twitch_chat_history)
+        if with_twitch_chat and len(self.twitch_chat_history) > 0:
+            twitch_chat = '\n'.join(self.twitch_chat_history)
             twitch_chat_history_string = f"\n- Twitch chat history: '{twitch_chat}'"
 
-        # Add the audio captions to the prompt
-        if len(captions) > 0:
-            caption_string = f"\n- Audio captions: {captions}"
+        # Add the audio transcript to the prompt
+        if with_audio_transcript and len(self.audio_transcript) > 0:
+            transcript_string = f"\n- Audio transcript: {self.audio_transcript}"
 
         # Return the updated prompt
-        return self.prompt + channel_description_string + caption_string + twitch_chat_history_string
+        return f"<<context>>{channel_description_string}{transcript_string}{twitch_chat_history_string}<</context>>"
 
 
     # Add the user message to the conversation
-    def add_user_message(
+    def create_user_message(
             self,
             chat_message: Message,
-            no_twitch_chat: bool = False,
-            no_audio_context: bool = False,
-            with_image: bool = False):
+            with_twitch_chat: bool,
+            with_audio_transcript: bool,
+            with_image: bool):
         
         # Get the message information
         username = chat_message.username
@@ -198,13 +194,15 @@ class ChatAPI:
         # Initialize the conversation if it doesn't exist
         if username not in self.memory.conversations:
             self.init_conversation(username)
-        
-        # keep only the last 10 messages
-        if len(self.memory.conversations[username]) > 10:
-            self.memory.conversations[username].pop(1)
 
-        # Add the message to the conversation
-        message = f"{username}: {message}"
+        # Update the system prompt
+        self.update_system_prompt(username)
+
+        # Generate extra context for the prompt
+        extra_context = self.generate_prompt_context(with_twitch_chat, with_audio_transcript)            
+
+        # Add the message with context to the conversation
+        prompt = f"{extra_context}\nReply to the following chat message '{username}: {message}'"
 
         if with_image:
             # Pause transcription for resource optimization
@@ -216,13 +214,13 @@ class ChatAPI:
             # Resume transcription
             self.pubsub.publish(PubEvents.RESUME_TRANSCRIPTION)
 
-            # Add the message to the conversation with the image
+            # Add the prompt to the conversation with the image
             self.memory.conversations[username].append({
                 "role": "user",
                 "content": [
                     {
                         "type": "text",
-                        "text": message
+                        "text": prompt
                     },
                     {
                         "type": "image_url",
@@ -235,14 +233,11 @@ class ChatAPI:
             })
         
         else:
-            # Add the message to the conversation
+            # Add the prompt to the conversation
             self.memory.conversations[username].append({
                 "role": "user",
-                "content": message
+                "content": prompt
             })
-
-        # Update the system prompt
-        self.update_prompt(username, no_twitch_chat, no_audio_context)
 
 
     # Add the response from the AI to the conversation
@@ -255,9 +250,6 @@ class ChatAPI:
         if username not in self.memory.conversations:
             return
         
-        # remove image from sent message
-        self.memory.conversations[username] = remove_image_messages(self.memory.conversations[username])
-
         # Add the response to the conversation
         self.memory.conversations[username].append({
             "role": "assistant",
@@ -265,8 +257,11 @@ class ChatAPI:
         })
 
         # keep only the last 10 messages
-        if len(self.memory.conversations[username]) > 10:
+        while len(self.memory.conversations[username]) > 10:
             self.memory.conversations[username].pop(1)
+        
+        # remove images and old context messages from the conversation
+        self.memory.conversations[username] = clean_conversation(self.memory.conversations[username])
 
 
     # Clear the conversation with the user from the memory
@@ -279,13 +274,19 @@ class ChatAPI:
     def get_ai_response_with_image(self, chat_message: Message):
         
         # Add the user message to the conversation
-        self.add_user_message(chat_message, with_image=True, no_twitch_chat=True)
+        self.create_user_message(chat_message, with_twitch_chat=False, with_audio_transcript=True, with_image=True)
 
         # Get a response from the AI
         response = self.openai_api.chat.completions.create(
             model="gpt-4-vision-preview",
             messages=self.memory.conversations[chat_message.username],
-            max_tokens=int(os.environ["openai_api_max_tokens_response"])
+            max_tokens=300
         )
 
-        return response.choices[0].message.content
+        # Get the response text
+        text = response.choices[0].message.content
+
+        # Add the response to the conversation
+        self.add_response_to_conversation(chat_message.username, text)
+
+        return text

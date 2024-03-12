@@ -123,7 +123,7 @@ class ServeClientFasterWhisper():
         self.show_prev_out_thresh = 5   # if pause(no output from whisper) show previous output for 5 seconds
         self.add_pause_thresh = 3       # add a blank to segment list as a pause(no speech) for 3 seconds
         self.transcript = []
-        self.send_last_n_segments = 75
+        self.send_last_n_segments = 50
 
         # threading
         self.lock = threading.Lock()
@@ -251,13 +251,12 @@ class ServeClientFasterWhisper():
 
     # Prepares the segments of transcribed text to be sent to be published.
     def prepare_segments(self, last_segment=None) -> list:
-        segments = []
-
         # if the number of segments is greater than the specified threshold, only include the last n segments
         if len(self.transcript) >= self.send_last_n_segments:
-            segments = self.transcript[-self.send_last_n_segments:].copy()
-        else:
-            segments = self.transcript.copy()
+            self.transcript = self.transcript[-self.send_last_n_segments:]
+        
+        # copy the transcript segments
+        segments = self.transcript.copy()
         
         # add the last segment if provided
         if last_segment is not None:
@@ -281,7 +280,8 @@ class ServeClientFasterWhisper():
             input_sample,
             language=self.language,
             vad_filter=True,
-            vad_parameters={"threshold": 0.5}
+            vad_parameters={"threshold": 0.5},
+            initial_prompt=f"Usernames: {os.environ['bot_username']}, {os.environ['target_channel']}"
         )
         
         # update the language if it is not set

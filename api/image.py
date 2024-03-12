@@ -9,7 +9,7 @@ class ImageAPI:
     def take_screenshot(self) -> io.BytesIO:       
         # Run the streamlink command
         streamlink_process = subprocess.Popen(
-            ['streamlink', f"twitch.tv/{os.environ['target_channel']}", 'best', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
+            ['streamlink', f"twitch.tv/{os.environ['target_channel']}", '480p', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
             stdout=subprocess.PIPE)
 
         # Pipe the output to ffmpeg

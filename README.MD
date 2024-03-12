@@ -37,8 +37,6 @@
 | **twitch_user_token** | automatically filled | The oauth token for the twitch user |
 | **twitch_user_refresh_token** | automatically filled | The refresh token for the twitch user |
 | **openai_api_key** | must fill | The openai api key [Get it here](https://platform.openai.com/account/api-keys) |
-| **openai_api_max_tokens_total** | has a default value | The max tokens for a single request |
-| **openai_api_max_tokens_response** | has a default value | The max tokens for a single response |
 | **shazam_api_key** | must fill | The shazam api key [Get it here](https://rapidapi.com/apidojo/api/shazam) |
 
 ## Commands 

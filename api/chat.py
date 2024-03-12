@@ -76,7 +76,7 @@ class ChatAPI:
             response = self.openai_api.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=self.memory.conversations[username],
-                max_tokens=int(os.environ["openai_api_max_tokens_response"]),
+                max_tokens=300,
                 functions=self.functions
             )
 
@@ -280,7 +280,7 @@ class ChatAPI:
         response = self.openai_api.chat.completions.create(
             model="gpt-4-vision-preview",
             messages=self.memory.conversations[chat_message.username],
-            max_tokens=int(os.environ["openai_api_max_tokens_response"])
+            max_tokens=300
         )
 
         # Get the response text

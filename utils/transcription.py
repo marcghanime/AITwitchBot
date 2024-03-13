@@ -1,14 +1,14 @@
 import os
 import time
-import threading
 import logging
+import threading
 import subprocess
 import numpy as np
 
+from utils.pubsub import PubSub, PubEvents
+
 from whisper_live.transcriber import WhisperModel
 from faster_whisper.transcribe import TranscriptionInfo, Segment, Iterable
-
-from utils.pubsub import PubSub, PubEvents
 
 
 logging.basicConfig(level=logging.ERROR)
@@ -281,7 +281,7 @@ class ServeClientFasterWhisper():
             language=self.language,
             vad_filter=True,
             vad_parameters={"threshold": 0.5},
-            initial_prompt=f"Usernames: {os.environ['bot_username']}, {os.environ['target_channel']}"
+            # initial_prompt=f"Usernames: {os.environ['bot_username']}, {os.environ['target_channel']}"
         )
         
         # update the language if it is not set

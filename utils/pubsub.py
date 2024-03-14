@@ -19,11 +19,15 @@ class PubEvents(Enum):
 class PubSub:
     def __init__(self):
         self.subscribers: Dict[PubEvents, Dict[uuid.UUID, Callable]] = {}
-        self.lock = threading.Lock()
+        self.locks: Dict[PubEvents, threading.Lock] = {}
 
+    def get_lock(self, event: PubEvents) -> threading.Lock:
+        if event not in self.locks:
+            self.locks[event] = threading.Lock()
+        return self.locks[event]
 
     def subscribe(self, event: PubEvents, callback: Callable) -> uuid.UUID:
-        with self.lock:
+        with self.get_lock(event):
             # Add the event to the list of subscribers
             if event not in self.subscribers:
                 self.subscribers[event] = {}
@@ -37,16 +41,14 @@ class PubSub:
             # Return the subscription ID
             return sub_id
 
-
     def unsubscribe(self, event: PubEvents, sub_id: uuid.UUID):
-        with self.lock:
+        with self.get_lock(event):
             # Remove the callback from the list of subscribers
             if event in self.subscribers and sub_id in self.subscribers[event]:
                 del self.subscribers[event][sub_id]
 
-
     def publish(self, event: PubEvents, *args, **kwargs):
-        with self.lock:
+        with self.get_lock(event):
             # Check if the event has subscribers
             if event in self.subscribers:
 

@@ -18,6 +18,9 @@
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
+- [ ] Add timeout to proccess stdout reads
+- [ ] Add stream category to the context
+- [ ] Fix initial prompt for transcription
 - [ ] Fix slow mode
 - [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts
@@ -31,7 +34,7 @@
 | --- | --- | --- |
 | **target_channel** | must fill | The channel the bot will join |
 | **bot_username** | must fill | The bots username |
-| **admin_username** | optional | The username of the person running the bot (used for admin commands) |
+| **admin_username** | optional | The username of the person running the bot |
 | **twitch_api_client_id** | must fill | The client id for the twitch api [Get it here](https://dev.twitch.tv/console/apps) |
 | **twitch_api_client_secret** | must fill | The client secret for the twitch api [Get it here](https://dev.twitch.tv/console/apps) |
 | **twitch_user_token** | automatically filled | The oauth token for the twitch user |

@@ -52,7 +52,7 @@ class BotAPI:
         # Initialize APIs
         self.twitch_api = TwitchAPI(self.pubsub)
         self.chat_api = ChatAPI(self.pubsub, self.memory)
-        self.shazam_api = ShazamAPI()
+        self.shazam_api = ShazamAPI(self.pubsub)
 
         # Subscribe to events
         self.pubsub.subscribe(PubEvents.CHAT_MESSAGE, self.process_message)
@@ -70,7 +70,7 @@ class BotAPI:
     # Setup constant strings
     def setup_strings(self):
         self.command_help = f"Must be {os.environ['target_channel']} or a Mod. Commands: timeout [username] [seconds] | reset [username] | cooldown [minutes] | ban [username] | unban [username] | slowmode [seconds] | banword [word] | unbanword [word]"
-        self.react_string = f"Respond or react to the most recent thing {os.environ['target_channel']} said based only on the audio transcript and (if provided) the image for context."
+        self.react_string = f"Respond or react to the most recent thing {os.environ['target_channel']} said based only on the audio transcript and (if provided) the image for context. The most recent topic is at the end of the audio transcript."
 
 
     # Process messages received from the Twitch API

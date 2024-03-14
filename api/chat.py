@@ -37,7 +37,7 @@ class ChatAPI:
         self.pubsub = pubsub
         self.memory = memory
         self.openai_api = OpenAI(api_key=os.environ["openai_api_key"])
-        self.image_api = ImageAPI()
+        self.image_api = ImageAPI(pubsub)
 
         # Subscribe to events
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_transcript)
@@ -176,7 +176,7 @@ class ChatAPI:
             transcript_string = f"\n- Audio transcript: {self.audio_transcript}"
 
         # Return the updated prompt
-        return f"<<context>>{channel_description_string}{transcript_string}{twitch_chat_history_string}<</context>>"
+        return f"<<context>> {channel_description_string} {transcript_string} {twitch_chat_history_string} <</context>>"
 
 
     # Add the user message to the conversation

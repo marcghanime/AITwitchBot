@@ -1,37 +1,33 @@
-import io
-import os
-import subprocess
 import base64
+import subprocess
 
+from utils.ffmpeg_base import FfmpegBase
 
-class ImageAPI:
+class ImageAPI(FfmpegBase):
     # Take screenshot of twitch stream
-    def take_screenshot(self) -> io.BytesIO:       
-        # Run the streamlink command
-        streamlink_process = subprocess.Popen(
-            ['streamlink', f"twitch.tv/{os.environ['target_channel']}", '480p', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
-            stdout=subprocess.PIPE)
+    def take_screenshot(self) -> bytes:  
+        # Start recording the stream 
+        self.start_recording()
 
-        # Pipe the output to ffmpeg
-        ffmpeg_process = subprocess.Popen(
+        # Pipe the stream output to ffmpeg
+        self.ffmpeg_process = subprocess.Popen(
             ['ffmpeg', '-i', 'pipe:0', '-vframes', '1', '-vcodec', 'png', '-f', 'image2pipe', '-loglevel', 'panic', '-'],
-            stdin=streamlink_process.stdout,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE)
 
-        # Read the output into a BytesIO object
-        image_bytes = io.BytesIO(ffmpeg_process.communicate()[0])
+        # Wait for all the bytes to be written to stdout
+        out_bytes = self.ffmpeg_process.stdout.read(480 * 640 * 3)  # 3 bytes per pixel
 
-        # Close the processes
-        streamlink_process.kill()
-        ffmpeg_process.kill()
+        # Stop recording the stream
+        self.stop_recording()
 
-        return image_bytes
+        return out_bytes
     
 
     # Get the screenshot as a base64 string
     def get_base64_screenshot(self):
-        # Get the screenshot as a BytesIO object
+        # Get the screenshot as bytes
         image_bytes = self.take_screenshot()
 
         # Encode the image data to base64
-        return base64.b64encode(image_bytes.getvalue()).decode('utf-8')
+        return base64.b64encode(image_bytes).decode('utf-8')

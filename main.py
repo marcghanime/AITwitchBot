@@ -4,6 +4,7 @@ import threading
 
 from api.bot import BotAPI
 
+from utils.stream import Stream
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
 from utils.transcription import TranscriptionServer
@@ -42,11 +43,17 @@ class CLI:
         # Initialize the bot API
         self.bot_api = BotAPI(self.pubsub, self.memory)
 
-        # Initialize the whisper transcription server and start the transcription
-        self.transcription_server = TranscriptionServer(self.pubsub, language="en", model="tiny.en")
+        # Initialize the stream
+        self.stream = Stream(self.pubsub)
+
+        # Initialize the whisper transcription server
+        self.transcription = TranscriptionServer(self.pubsub, language="en", model="tiny.en")
         
-        # Start the main thread
+        # Start the main thread, stream and transcription
+        self.stream.start()
+        self.transcription.start()
         self.start()
+
     
 
     # Start the main thread.

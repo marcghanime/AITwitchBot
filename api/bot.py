@@ -52,7 +52,7 @@ class BotAPI:
         # Initialize APIs
         self.twitch_api = TwitchAPI(self.pubsub)
         self.chat_api = ChatAPI(self.pubsub, self.memory)
-        self.shazam_api = ShazamAPI()
+        self.shazam_api = ShazamAPI(self.pubsub)
 
         # Subscribe to events
         self.pubsub.subscribe(PubEvents.CHAT_MESSAGE, self.process_message)

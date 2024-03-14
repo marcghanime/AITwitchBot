@@ -5,6 +5,7 @@ import threading
 import subprocess
 import numpy as np
 
+from utils.ffmpeg_base import FfmpegBase
 from utils.pubsub import PubSub, PubEvents
 
 from whisper_live.transcriber import WhisperModel
@@ -14,10 +15,11 @@ from faster_whisper.transcribe import TranscriptionInfo, Segment, Iterable
 logging.basicConfig(level=logging.ERROR)
 
 
-class TranscriptionServer:
+class TranscriptionServer(FfmpegBase):
     def __init__(self, pubsub: PubSub, language: str, model: str):
+        super().__init__(pubsub)
+        
         self.pubsub = pubsub
-
         self.stop_event = threading.Event()
 
         # subscribe to showtdown event
@@ -30,14 +32,23 @@ class TranscriptionServer:
             model=model,
         )
 
-        logging.info("Running Transcription Server.")
-
+    # Start transcibing the stream
+    def start(self):
+        # Start the transcription client
         self.client.start()
 
         # Start the audio processing thread
         self.audio_processing_thread = threading.Thread(target=self.process_audio_frames)
         self.audio_processing_thread.start()
-    
+
+        logging.info("Running Transcription Server.")
+
+
+    # Stop transcibing the stream
+    def stop(self):
+        self.stop_event.set()
+        self.client.stop()
+
 
     @staticmethod
     def bytes_to_float_array(audio_bytes):
@@ -47,21 +58,13 @@ class TranscriptionServer:
 
     # Process the audio frames from the stream
     def process_audio_frames(self):
-        logging.info("Connecting to stream...")
+        try: 
+            self.start_recording()
 
-        streamlink_process: subprocess.Popen[bytes]
-        ffmpeg_process: subprocess.Popen[bytes]
-        
-        try:
-            # Run the streamlink command
-            streamlink_process = subprocess.Popen(
-                ['streamlink', f"twitch.tv/{os.environ['target_channel']}", 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
-                stdout=subprocess.PIPE)
-            
             # Pipe the output to ffmpeg
-            ffmpeg_process = subprocess.Popen(
+            self.ffmpeg_process = subprocess.Popen(
                 ['ffmpeg', '-i', 'pipe:0', '-f', 's16le', '-acodec', 'pcm_s16le', '-ac', '1', '-ar', '16000', '-loglevel', 'panic', '-'],
-                stdin=streamlink_process.stdout,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -70,40 +73,19 @@ class TranscriptionServer:
             logging.info("Processing stream...")
             while not self.stop_event.is_set():
                 # Read the audio stream
-                in_bytes = ffmpeg_process.stdout.read(4096 * 2)  # 2 bytes per sample
-                
-                # If no bytes are read, break the loop
-                if not in_bytes:
-                    break
+                out_bytes = self.ffmpeg_process.stdout.read(4096 * 2)
 
                 # Convert the bytes to a float array
-                audio_array = self.bytes_to_float_array(in_bytes)
+                audio_array = self.bytes_to_float_array(out_bytes)
 
                 # Send the audio array to the server
                 self.client.add_frames(audio_array)
 
         except Exception as e:
-            logging.error(f"Failed to connect to stream: {e}")
+            logging.error(f"Failed to process stream: {e}")
 
         finally:
-            # Kill the processes
-            logging.info("Killing processes...")
-            if streamlink_process:
-                streamlink_process.kill()
-            
-            if ffmpeg_process:
-                ffmpeg_process.kill()
-
-        logging.info("Stream processing finished.")
-
-        # if stop event is not set, send a shutdown event
-        if not self.stop_event.is_set():
-            self.pubsub.publish(PubEvents.SHUTDOWN)
-
-
-    def stop(self):
-        self.stop_event.set()
-        self.client.stop()
+            self.stop_recording()
 
 
 class ServeClientFasterWhisper():

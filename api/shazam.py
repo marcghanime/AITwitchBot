@@ -1,11 +1,12 @@
 import os
-import io
-import requests
 import base64
+import requests
 import subprocess
 
+from utils.ffmpeg_base import FfmpegBase
 
-class ShazamAPI:
+
+class ShazamAPI(FfmpegBase):
     def detect_song(self):
         # record audio from the stream
         bytes = self.record_audio()
@@ -20,33 +21,31 @@ class ShazamAPI:
 
 
     # records output audio from the stream.
-    def record_audio(self):
-        # Run the streamlink command
-        streamlink_process = subprocess.Popen(
-            ['streamlink', f"twitch.tv/{os.environ['target_channel']}", 'audio_only', '--quiet', '--stdout', '--twitch-disable-ads', '--twitch-low-latency'],
-            stdout=subprocess.PIPE)
+    def record_audio(self) -> bytes:
+        # Start recording the stream
+        self.start_recording()
         
         # Pipe the output to ffmpeg with 1 channel and 44100 sample rate for 8 seconds
-        ffmpeg_process = subprocess.Popen(
-            ['ffmpeg', '-i', 'pipe:0', '-ac', '1', '-ar', '44100', '-t', '8', '-f', 'wav', '-loglevel', 'panic', '-'],
-            stdin=streamlink_process.stdout,
+        self.ffmpeg_process = subprocess.Popen(
+            ['ffmpeg', '-i', 'pipe:0', '-ac', '1', '-ar', '44100', '-t', '8', '-acodec', 'pcm_s16le', '-f', 'wav', '-loglevel', 'panic', '-'],
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE)
         
-        # Read the output into a BytesIO object
-        audio_bytes = io.BytesIO(ffmpeg_process.communicate()[0])
+        # Total Bytes = 8 seconds * 44100 Hz * 1 channel * 2 bytes/sample = 705600 bytes
+        # Wait for all the bytes to be written to stdout
+        out_bytes = self.ffmpeg_process.stdout.read(705600)  
 
-        # Close the processes
-        streamlink_process.kill()
-        ffmpeg_process.kill()
+        # Stop recording the stream
+        self.stop_recording()
 
         # return the audio bytes
-        return audio_bytes
+        return out_bytes
 
 
     # Get the audio data from the file
-    def get_audio_data(self, bytes: io.BytesIO):
+    def get_audio_data(self, bytes: bytes):
         # Encode the audio data to base64
-        base64_data = base64.b64encode(bytes.getvalue()).decode('utf-8')
+        base64_data = base64.b64encode(bytes).decode('utf-8')
 
         return base64_data
 

@@ -18,7 +18,8 @@
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
-- [ ] Unifiy streamlink in one playback
+- [ ] Add timeout to proccess stdout reads
+- [ ] Add stream category to the context
 - [ ] Fix initial prompt for transcription
 - [ ] Fix slow mode
 - [ ] Update prints and logging

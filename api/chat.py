@@ -37,7 +37,7 @@ class ChatAPI:
         self.pubsub = pubsub
         self.memory = memory
         self.openai_api = OpenAI(api_key=os.environ["openai_api_key"])
-        self.image_api = ImageAPI()
+        self.image_api = ImageAPI(pubsub)
 
         # Subscribe to events
         self.pubsub.subscribe(PubEvents.TRANSCRIPT, self.update_transcript)

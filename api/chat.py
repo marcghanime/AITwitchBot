@@ -176,7 +176,7 @@ class ChatAPI:
             transcript_string = f"\n- Audio transcript: {self.audio_transcript}"
 
         # Return the updated prompt
-        return f"<<context>> {channel_description_string} {transcript_string} {twitch_chat_history_string} <</context>>"
+        return f"<<context>> {channel_description_string} {twitch_chat_history_string} {transcript_string} <</context>>"
 
 
     # Add the user message to the conversation

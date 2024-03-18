@@ -99,7 +99,7 @@ def remove_old_contexts(messages: list):
         text = re.sub(r"<<context>>.*<</context>>", "", text, flags=re.DOTALL)
 
         # update the message content in the messages list
-        messages[i]["content"] = text
+        messages[i]["content"] = text.strip().strip("\n")
 
     return messages
 

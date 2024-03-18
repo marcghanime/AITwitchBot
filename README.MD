@@ -18,9 +18,7 @@
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
-- [ ] Add timeout to proccess stdout reads
 - [ ] Add stream category to the context
-- [ ] Fix initial prompt for transcription
 - [ ] Fix slow mode
 - [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts

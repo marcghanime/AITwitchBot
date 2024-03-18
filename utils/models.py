@@ -12,6 +12,7 @@ class Config:
     twitch_user_refresh_token: str = ""
     openai_api_key: str = ""
     shazam_api_key: str = ""
+    deepgram_api_key: str = ""
 
 
 @dataclass

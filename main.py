@@ -7,7 +7,7 @@ from api.bot import BotAPI
 from utils.stream import Stream
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
-from utils.transcription import TranscriptionServer
+from utils.local_transcription import TranscriptionServer
 from utils.functions import load_config, save_config, load_memory, save_memory, set_environ
 
 

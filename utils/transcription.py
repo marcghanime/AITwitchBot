@@ -8,11 +8,7 @@ import numpy as np
 from utils.ffmpeg_base import FfmpegBase
 from utils.pubsub import PubSub, PubEvents
 
-from whisper_live.transcriber import WhisperModel
-from faster_whisper.transcribe import TranscriptionInfo, Segment, Iterable
-
-
-logging.basicConfig(level=logging.ERROR)
+from faster_whisper.transcribe import WhisperModel, TranscriptionInfo, Segment, Iterable
 
 
 class TranscriptionServer(FfmpegBase):
@@ -177,7 +173,7 @@ class ServeClientFasterWhisper():
         else:
             self.new_frames_np = np.concatenate((self.new_frames_np, frame_np), axis=0)
 
-        # If the new frames buffer is not more than 5 seconds, return
+        # If the new frames buffer is not more than x seconds, return
         if self.new_frames_np.shape[0] < max_new_buffer_seconds * self.RATE:
             self.lock.release()
             return
@@ -265,12 +261,17 @@ class ServeClientFasterWhisper():
             vad_parameters={"threshold": 0.5},
             # initial_prompt=f"Usernames: {os.environ['bot_username']}, {os.environ['target_channel']}"
         )
+
+        # Generate a list of segments from the result generator
+        result_list = []
+        for segment in result:
+            result_list.append(segment)
         
         # update the language if it is not set
         if self.language is None:
             self.set_language(info)
         
-        return result
+        return result_list
 
 
     # Retrieves previously generated transcription outputs if no new transcription is available from the current audio chunks.

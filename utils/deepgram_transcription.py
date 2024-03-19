@@ -15,22 +15,19 @@ class TranscriptionServer(FfmpegBase):
         
         self.pubsub = pubsub
         self.stop_event = threading.Event()
-
-        # TODO add keywords
-        # TODO add transcript length limit
+        
+        # Transcript
         self.transcript = []
+        self.transcript_duration_limit = 300
 
         # subscribe to showtdown event
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.stop)    
 
         # Create the WebSocket client
-        encoding = "linear16"
-        sample_rate = 16000
-        channels = 1
-        model = "nova-2"
-        self.ws_url = f"wss://api.deepgram.com/v1/listen?model={model}&encoding={encoding}&sample_rate={sample_rate}&channels={channels}&smart_format=true"
+        ws_url = self.create_ws_url()
         extra_headers={"Authorization": f"Token {os.environ['deepgram_api_key']}"}
-        self.ws = websocket.WebSocketApp(self.ws_url,
+
+        self.ws = websocket.WebSocketApp(ws_url,
             header=extra_headers,
             on_open=lambda ws: self.on_open(ws),
             on_message=lambda ws, message: self.on_message(ws, message),
@@ -57,6 +54,24 @@ class TranscriptionServer(FfmpegBase):
         self.stop_event.set()
         self.ws.send(json.dumps({"type": "CloseStream"}))
         self.ws.close()
+
+
+    def create_ws_url(self):
+        # Options
+        encoding = "linear16"
+        sample_rate = 16000
+        channels = 1
+        model = "nova-2"
+
+        # Create the WebSocket URL
+        ws_url = f"wss://api.deepgram.com/v1/listen?model={model}&encoding={encoding}&sample_rate={sample_rate}&channels={channels}&smart_format=true"
+        
+        # Add keywords
+        keywords = [os.environ['bot_username'], os.environ['target_channel']]
+        for keyword in keywords:
+            ws_url += f"&keywords={keyword}"
+
+        return ws_url
 
 
     # Process the audio frames from the stream
@@ -107,11 +122,20 @@ class TranscriptionServer(FfmpegBase):
         segment = {
             'start': "{:.3f}".format(start),
             'end': "{:.3f}".format(end),
+            'duration': "{:.3f}".format(duration),
             'text': text
         }
 
         # append the segment to the transcript
         self.transcript.append(segment)
+
+        # calculate the duration of the transcript
+        transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
+
+        # keep the last 5 minutes of the transcript
+        while transcript_duration > self.transcript_duration_limit:
+            self.transcript.pop(0)
+            transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
 
         # publish the transcript
         self.pubsub.publish(PubEvents.TRANSCRIPT, self.transcript)

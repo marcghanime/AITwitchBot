@@ -39,6 +39,7 @@
 | **twitch_user_refresh_token** | automatically filled | The refresh token for the twitch user |
 | **openai_api_key** | must fill | The openai api key [Get it here](https://platform.openai.com/account/api-keys) |
 | **shazam_api_key** | must fill | The shazam api key [Get it here](https://rapidapi.com/apidojo/api/shazam) |
+| **deepgram_api_key** | must fill | The deepgram api key [Get it here](https://console.deepgram.com) |
 
 ## Commands 
 The following commands are available to **admin**, **streamer** and **mods** via twitch whispers to the bot:

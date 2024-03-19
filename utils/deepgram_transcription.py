@@ -123,7 +123,7 @@ class TranscriptionServer(FfmpegBase):
             'start': "{:.3f}".format(start),
             'end': "{:.3f}".format(end),
             'duration': "{:.3f}".format(duration),
-            'text': text
+            'text': f"{text} "
         }
 
         # append the segment to the transcript

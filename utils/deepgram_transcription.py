@@ -18,7 +18,7 @@ class TranscriptionServer(FfmpegBase):
         
         # Transcript
         self.transcript = []
-        self.transcript_duration_limit = 300
+        self.transcript_duration_limit = 180
 
         # subscribe to showtdown event
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.stop)    
@@ -97,7 +97,7 @@ class TranscriptionServer(FfmpegBase):
                 self.ws.send(out_bytes, websocket.ABNF.OPCODE_BINARY)
 
         except Exception as e:
-            logging.error(f"Failed to process stream: {e}")
+            logging.error(f"Error while processing stream: {e}")
 
         finally:
             self.stop_recording()
@@ -120,9 +120,9 @@ class TranscriptionServer(FfmpegBase):
 
         # create a segment
         segment = {
-            'start': "{:.3f}".format(start),
-            'end': "{:.3f}".format(end),
-            'duration': "{:.3f}".format(duration),
+            'start': round(start, 3),
+            'end': round(end, 3),
+            'duration': round(duration, 3),
             'text': f"{text} "
         }
 

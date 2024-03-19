@@ -12,7 +12,7 @@ from faster_whisper.transcribe import WhisperModel, TranscriptionInfo, Segment, 
 
 
 class TranscriptionServer(FfmpegBase):
-    def __init__(self, pubsub: PubSub, language: str, model: str):
+    def __init__(self, pubsub: PubSub, language: str = "en", model: str = "tiny.en"):
         super().__init__(pubsub)
         
         self.pubsub = pubsub

@@ -7,7 +7,7 @@ from api.bot import BotAPI
 from utils.stream import Stream
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
-from utils.local_transcription import TranscriptionServer
+from utils.deepgram_transcription import TranscriptionServer
 from utils.functions import load_config, save_config, load_memory, save_memory, set_environ
 
 
@@ -46,8 +46,8 @@ class CLI:
         # Initialize the stream
         self.stream = Stream(self.pubsub)
 
-        # Initialize the whisper transcription server
-        self.transcription = TranscriptionServer(self.pubsub, language="en", model="tiny.en")
+        # Initialize the transcription server
+        self.transcription = TranscriptionServer(self.pubsub)
         
         # Start the main thread, stream and transcription
         self.stream.start()

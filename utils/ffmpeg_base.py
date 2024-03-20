@@ -13,6 +13,8 @@ class FfmpegBase:
     lock: threading.Lock
     ffmpeg_process: subprocess.Popen[bytes]
 
+    logger = logging.getLogger("ffmpeg_base")
+
     def __init__(self, pubsub: PubSub):
         self.pubsub = pubsub
 
@@ -43,7 +45,7 @@ class FfmpegBase:
         except BrokenPipeError as e:
             return
         except Exception as e:
-            logging.error(f"[FFMPEG GET BYTES] {e}")
+            self.logger.error(f"[FFMPEG GET BYTES] {e}")
 
 
     # start receiving bytes from the stream

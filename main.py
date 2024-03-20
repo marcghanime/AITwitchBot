@@ -1,5 +1,6 @@
 import time
 import signal
+import logging
 import threading
 
 from api.bot import BotAPI
@@ -19,6 +20,9 @@ class CLI:
 
     stop_event = threading.Event()
     audio_captions: str = ""
+
+    logger = logging.getLogger('main')
+    logging.basicConfig(level=logging.INFO)
 
     def __init__(self):
         # Register shutdown handler
@@ -58,26 +62,15 @@ class CLI:
 
     # Start the main thread.
     def start(self):
-        old_message_count = self.bot_api.get_message_count()
-        old_captions = ""
-
-        last_time = time.time()
-
         while not self.stop_event.is_set():
             # update the reaction time
             time_to_reaction = self.memory.reaction_time - time.time()
             
-            # check for new infos to print 
-            if old_message_count != self.bot_api.get_message_count() or old_captions != self.audio_captions or time.time() - last_time > 10:
-                print(f"\nCounter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{self.audio_captions}")
+            # print status
+            print(f"\nCounter: {self.bot_api.get_message_count()} | Time to reaction: {time_to_reaction}\nCaptions:\n{self.audio_captions}")
 
-                old_message_count = self.bot_api.get_message_count()
-                old_captions = self.audio_captions
-
-                last_time = time.time()
-
-            # sleep for 2.5 seconds
-            time.sleep(2.5)
+            # sleep for 5 seconds
+            time.sleep(5)
 
 
     # Callable for audio transcript
@@ -94,19 +87,19 @@ class CLI:
 
     # Shutdown handler for when a shutdown signal is received
     def shutdown_handler(self, *args, **kwargs):
-        print('[INFO]: Shutting down...')
+        self.logger.info('Shutting down...')
         self.pubsub.publish(PubEvents.SHUTDOWN)
 
 
     # Shutdown the main thread and save the config and memory
     def shutdown(self):
-        print('[INFO]: Stopping main thread...')
+        self.logger.info('Stopping main thread...')
         self.stop_event.set()
         
-        print('[INFO]: Saving config...')
+        self.logger.info('Saving config...')
         save_config(self.config)
 
-        print('[INFO]: Saving memory...')
+        self.logger.info('Saving memory...')
         save_memory(self.memory)
 
 

@@ -15,6 +15,8 @@ class TranscriptionServer(FfmpegBase):
         
         self.pubsub = pubsub
         self.stop_event = threading.Event()
+
+        self.logger = logging.getLogger("deepgram")
         
         # Transcript
         self.transcript = []
@@ -46,7 +48,7 @@ class TranscriptionServer(FfmpegBase):
         self.audio_processing_thread = threading.Thread(target=self.process_audio_frames)
         self.audio_processing_thread.start()
 
-        logging.info("Running Transcription Server.")
+        self.logger.info("Running Transcription Server.")
 
 
     # Stop transcibing the stream
@@ -88,7 +90,7 @@ class TranscriptionServer(FfmpegBase):
             )
 
             # Process the stream
-            logging.info("Processing stream...")
+            self.logger.info("Processing stream...")
             while not self.stop_event.is_set():
                 # Read the audio stream
                 out_bytes = self.ffmpeg_process.stdout.read(4096 * 2)
@@ -97,7 +99,7 @@ class TranscriptionServer(FfmpegBase):
                 self.ws.send(out_bytes, websocket.ABNF.OPCODE_BINARY)
 
         except Exception as e:
-            logging.error(f"Error while processing stream: {e}")
+            self.logger.error(f"Error while processing stream: {e}")
 
         finally:
             self.stop_recording()
@@ -105,7 +107,7 @@ class TranscriptionServer(FfmpegBase):
 
     # Handle the opening of the WebSocket connection
     def on_open(self, ws):
-        logging.debug("WebSocket connection opened.")
+        self.logger.debug("WebSocket connection opened.")
 
 
     # Receive data from the WebSocket server
@@ -114,7 +116,7 @@ class TranscriptionServer(FfmpegBase):
             json_message = json.loads(message)
 
             if json_message.get("type") != "Results":
-                logging.debug(f"Deepgram WS Message: {message}")
+                self.logger.debug(f"Deepgram WS Message: {message}")
                 return
 
             # Get the data
@@ -146,14 +148,14 @@ class TranscriptionServer(FfmpegBase):
             self.pubsub.publish(PubEvents.TRANSCRIPT, self.transcript)
 
         except Exception as e:
-            logging.error(f"Error while processing {message}: {e}")
+            self.logger.error(f"Error while processing {message}: {e}")
 
 
     # Handle errors
     def on_error(self, ws, error):
-        logging.error(error)
+        self.logger.error(error)
 
 
     # Handle the closing of the WebSocket connection
     def on_close(self, ws, close_status_code, close_msg):
-        logging.debug(f"WebSocket connection closed: {close_status_code} - {close_msg}")
+        self.logger.debug(f"WebSocket connection closed: {close_status_code} - {close_msg}")

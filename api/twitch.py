@@ -1,15 +1,17 @@
 import os
+import logging
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-
-from twitchAPI.twitch import Twitch, TwitchUser
-from twitchAPI.oauth import UserAuthenticator, refresh_access_token
-from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException, ChatEvent
-from twitchAPI.chat import Chat, ChatMessage, WhisperEvent
-from twitchAPI.helper import first
 
 from utils.models import Message
 from utils.pubsub import PubSub, PubEvents
+
+from concurrent.futures import ThreadPoolExecutor
+
+from twitchAPI.helper import first
+from twitchAPI.twitch import Twitch, TwitchUser
+from twitchAPI.chat import Chat, ChatMessage, WhisperEvent
+from twitchAPI.oauth import UserAuthenticator, refresh_access_token
+from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException, ChatEvent
 
 
 class TwitchAPI:
@@ -20,13 +22,15 @@ class TwitchAPI:
     chat_history = []
     bot_user: TwitchUser
 
+    logger = logging.getLogger('twitch_api')
+
     def __init__(self, pubsub: PubSub):
         self.pubsub = pubsub
 
         # Subscribe to the shutdown event
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.shutdown)
 
-        print("[INFO]: Initializing Twitch API...")
+        self.logger.info("Initializing Twitch API...")
 
         # Authenticate Twitch API
         with ThreadPoolExecutor() as pool:
@@ -39,7 +43,7 @@ class TwitchAPI:
         # Set about section of target channel in environment
         self.set_channel_description()
 
-        print("[INFO]: Twitch API Initialized")
+        self.logger.info("Twitch API Initialized")
 
 
     # API Shutdown
@@ -52,7 +56,7 @@ class TwitchAPI:
         except:
             pass
         
-        print("[INFO]: Twitch API Shutdown")
+        self.logger.info("Twitch API Shutdown")
 
 
     # Initialize the chat bot
@@ -158,8 +162,8 @@ class TwitchAPI:
             auth = UserAuthenticator(self.twitch, scope, force_verify=True)
             try:
                 twitch_user_token, refresh_token = await auth.authenticate()
-            except:
-                print("[ERROR]: Authentication failed")
+            except Exception as e:
+                self.logger.error(f"Authentication failed: {e}")
                 self.pubsub.publish(PubEvents.SHUTDOWN)
                 return
 

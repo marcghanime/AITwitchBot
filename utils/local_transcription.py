@@ -18,6 +18,8 @@ class TranscriptionServer(FfmpegBase):
         self.pubsub = pubsub
         self.stop_event = threading.Event()
 
+        self.logger = logging.getLogger("local_transcription")
+
         # subscribe to showtdown event
         self.pubsub.subscribe(PubEvents.SHUTDOWN, self.stop)
 
@@ -37,7 +39,7 @@ class TranscriptionServer(FfmpegBase):
         self.audio_processing_thread = threading.Thread(target=self.process_audio_frames)
         self.audio_processing_thread.start()
 
-        logging.info("Running Transcription Server.")
+        self.logger.info("Running Transcription Server.")
 
 
     # Stop transcibing the stream
@@ -66,7 +68,7 @@ class TranscriptionServer(FfmpegBase):
             )
 
             # Process the stream
-            logging.info("Processing stream...")
+            self.logger.info("Processing stream...")
             while not self.stop_event.is_set():
                 # Read the audio stream
                 out_bytes = self.ffmpeg_process.stdout.read(4096 * 2)
@@ -78,7 +80,7 @@ class TranscriptionServer(FfmpegBase):
                 self.client.add_frames(audio_array)
 
         except Exception as e:
-            logging.error(f"Failed to process stream: {e}")
+            self.logger.error(f"Failed to process stream: {e}")
 
         finally:
             self.stop_recording()
@@ -247,7 +249,7 @@ class ServeClientFasterWhisper():
     def set_language(self, info: TranscriptionInfo):
         if info.language_probability > 0.5:
             self.language = info.language
-            logging.info(f"Detected language {self.language} with probability {info.language_probability}")
+            self.logger.info(f"Detected language {self.language} with probability {info.language_probability}")
 
 
     # Transcribes the provided audio sample using the configured transcriber instance.
@@ -354,11 +356,11 @@ class ServeClientFasterWhisper():
                 self.new_frames_event.clear()
 
             except Exception as e:
-                logging.error(f"[ERROR]: Failed to transcribe audio chunk: {e}")
+                self.logger.error(f"[ERROR]: Failed to transcribe audio chunk: {e}")
                 time.sleep(0.01)
 
 
-        logging.info("[INFO]: Exiting speech to text thread")
+        self.logger.info("[INFO]: Exiting speech to text thread")
 
     
     # Formats a transcription segment with precise start and end times alongside the transcribed text.

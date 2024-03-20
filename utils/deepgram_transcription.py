@@ -110,35 +110,43 @@ class TranscriptionServer(FfmpegBase):
 
     # Receive data from the WebSocket server
     def on_message(self, ws, message):
-        json_message = json.loads(message)
+        try:
+            json_message = json.loads(message)
 
-        # Get the data
-        start = json_message.get("start")
-        duration = json_message.get("duration")
-        end = start + duration
-        text = json_message['channel']['alternatives'][0]['transcript']
+            if json_message.get("type") != "Results":
+                logging.debug(f"Deepgram WS Message: {message}")
+                return
 
-        # create a segment
-        segment = {
-            'start': round(start, 3),
-            'end': round(end, 3),
-            'duration': round(duration, 3),
-            'text': f"{text} "
-        }
+            # Get the data
+            start = json_message.get("start")
+            duration = json_message.get("duration")
+            end = start + duration
+            text: str = json_message['channel']['alternatives'][0]['transcript']
 
-        # append the segment to the transcript
-        self.transcript.append(segment)
+            # create a segment
+            segment = {
+                'start': round(start, 3),
+                'end': round(end, 3),
+                'duration': round(duration, 3),
+                'text': '' if text == '' else f"{text.strip()} "
+            }
 
-        # calculate the duration of the transcript
-        transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
+            # append the segment to the transcript
+            self.transcript.append(segment)
 
-        # keep the last 5 minutes of the transcript
-        while transcript_duration > self.transcript_duration_limit:
-            self.transcript.pop(0)
+            # calculate the duration of the transcript
             transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
 
-        # publish the transcript
-        self.pubsub.publish(PubEvents.TRANSCRIPT, self.transcript)
+            # keep the last 5 minutes of the transcript
+            while transcript_duration > self.transcript_duration_limit:
+                self.transcript.pop(0)
+                transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
+
+            # publish the transcript
+            self.pubsub.publish(PubEvents.TRANSCRIPT, self.transcript)
+
+        except Exception as e:
+            logging.error(f"Error while processing {message}: {e}")
 
 
     # Handle errors

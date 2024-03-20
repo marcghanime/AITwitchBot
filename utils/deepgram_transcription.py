@@ -8,6 +8,7 @@ import subprocess
 from utils.ffmpeg_base import FfmpegBase
 from utils.pubsub import PubSub, PubEvents
 
+from websocket import WebSocketConnectionClosedException
 
 class TranscriptionServer(FfmpegBase):
     def __init__(self, pubsub: PubSub):
@@ -54,8 +55,15 @@ class TranscriptionServer(FfmpegBase):
     # Stop transcibing the stream
     def stop(self):
         self.stop_event.set()
-        self.ws.send(json.dumps({"type": "CloseStream"}))
-        self.ws.close()
+
+        # Close the websocket
+        try:
+            self.ws.send(json.dumps({"type": "CloseStream"}))
+            self.ws.close()
+        except WebSocketConnectionClosedException as e:
+            pass
+        except Exception as e:
+            self.logger.error(f"Error while closing websocket: {e}")
 
 
     def create_ws_url(self):

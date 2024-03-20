@@ -12,6 +12,8 @@ class Stream:
     processing_thread: threading.Thread
     stop_event: threading.Event
 
+    logger = logging.getLogger("stream")
+
     def __init__(self, pubsub: PubSub):
         self.pubsub = pubsub
         self.stop_event = threading.Event()
@@ -35,7 +37,7 @@ class Stream:
 
     # Process the stream
     def process(self):
-        logging.info("Connecting to stream...")
+        self.logger.info("Connecting to stream...")
 
         streamlink_process: subprocess.Popen[bytes]
         
@@ -46,7 +48,7 @@ class Stream:
                 stdout=subprocess.PIPE)
 
             # Process the stream
-            logging.info("Reading stream...")
+            self.logger.info("Reading stream...")
 
             while not self.stop_event.is_set():
                 # Read the stream data
@@ -61,14 +63,14 @@ class Stream:
                 
         except Exception as e:
             # Log the error
-            logging.error(f"Failed to connect to stream: {e}")
+            self.logger.error(f"Failed to connect to stream: {e}")
 
         finally:
             # Kill the streamlink process
             if streamlink_process:
                 streamlink_process.kill()
 
-        logging.info("Stream processing finished.")
+        self.logger.info("Stream processing finished.")
 
         # if stop event is not set, send a shutdown event
         if not self.stop_event.is_set():

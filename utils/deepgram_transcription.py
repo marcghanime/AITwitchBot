@@ -8,6 +8,7 @@ import subprocess
 from utils.ffmpeg_base import FfmpegBase
 from utils.pubsub import PubSub, PubEvents
 
+from websocket import WebSocketConnectionClosedException
 
 class TranscriptionServer(FfmpegBase):
     def __init__(self, pubsub: PubSub):
@@ -15,6 +16,8 @@ class TranscriptionServer(FfmpegBase):
         
         self.pubsub = pubsub
         self.stop_event = threading.Event()
+
+        self.logger = logging.getLogger("deepgram")
         
         # Transcript
         self.transcript = []
@@ -46,14 +49,21 @@ class TranscriptionServer(FfmpegBase):
         self.audio_processing_thread = threading.Thread(target=self.process_audio_frames)
         self.audio_processing_thread.start()
 
-        logging.info("Running Transcription Server.")
+        self.logger.info("Running Transcription Server.")
 
 
     # Stop transcibing the stream
     def stop(self):
         self.stop_event.set()
-        self.ws.send(json.dumps({"type": "CloseStream"}))
-        self.ws.close()
+
+        # Close the websocket
+        try:
+            self.ws.send(json.dumps({"type": "CloseStream"}))
+            self.ws.close()
+        except WebSocketConnectionClosedException as e:
+            pass
+        except Exception as e:
+            self.logger.error(f"Error while closing websocket: {e}")
 
 
     def create_ws_url(self):
@@ -88,7 +98,7 @@ class TranscriptionServer(FfmpegBase):
             )
 
             # Process the stream
-            logging.info("Processing stream...")
+            self.logger.info("Processing stream...")
             while not self.stop_event.is_set():
                 # Read the audio stream
                 out_bytes = self.ffmpeg_process.stdout.read(4096 * 2)
@@ -97,7 +107,7 @@ class TranscriptionServer(FfmpegBase):
                 self.ws.send(out_bytes, websocket.ABNF.OPCODE_BINARY)
 
         except Exception as e:
-            logging.error(f"Error while processing stream: {e}")
+            self.logger.error(f"Error while processing stream: {e}")
 
         finally:
             self.stop_recording()
@@ -105,47 +115,55 @@ class TranscriptionServer(FfmpegBase):
 
     # Handle the opening of the WebSocket connection
     def on_open(self, ws):
-        logging.debug("WebSocket connection opened.")
+        self.logger.debug("WebSocket connection opened.")
 
 
     # Receive data from the WebSocket server
     def on_message(self, ws, message):
-        json_message = json.loads(message)
+        try:
+            json_message = json.loads(message)
 
-        # Get the data
-        start = json_message.get("start")
-        duration = json_message.get("duration")
-        end = start + duration
-        text = json_message['channel']['alternatives'][0]['transcript']
+            if json_message.get("type") != "Results":
+                self.logger.debug(f"Deepgram WS Message: {message}")
+                return
 
-        # create a segment
-        segment = {
-            'start': round(start, 3),
-            'end': round(end, 3),
-            'duration': round(duration, 3),
-            'text': f"{text} "
-        }
+            # Get the data
+            start = json_message.get("start")
+            duration = json_message.get("duration")
+            end = start + duration
+            text: str = json_message['channel']['alternatives'][0]['transcript']
 
-        # append the segment to the transcript
-        self.transcript.append(segment)
+            # create a segment
+            segment = {
+                'start': round(start, 3),
+                'end': round(end, 3),
+                'duration': round(duration, 3),
+                'text': '' if text == '' else f"{text.strip()} "
+            }
 
-        # calculate the duration of the transcript
-        transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
+            # append the segment to the transcript
+            self.transcript.append(segment)
 
-        # keep the last 5 minutes of the transcript
-        while transcript_duration > self.transcript_duration_limit:
-            self.transcript.pop(0)
+            # calculate the duration of the transcript
             transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
 
-        # publish the transcript
-        self.pubsub.publish(PubEvents.TRANSCRIPT, self.transcript)
+            # keep the last 5 minutes of the transcript
+            while transcript_duration > self.transcript_duration_limit:
+                self.transcript.pop(0)
+                transcript_duration = sum([float(segment['duration']) for segment in self.transcript])
+
+            # publish the transcript
+            self.pubsub.publish(PubEvents.TRANSCRIPT, self.transcript)
+
+        except Exception as e:
+            self.logger.error(f"Error while processing {message}: {e}")
 
 
     # Handle errors
     def on_error(self, ws, error):
-        logging.error(error)
+        self.logger.error(error)
 
 
     # Handle the closing of the WebSocket connection
     def on_close(self, ws, close_status_code, close_msg):
-        logging.debug(f"WebSocket connection closed: {close_status_code} - {close_msg}")
+        self.logger.debug(f"WebSocket connection closed: {close_status_code} - {close_msg}")

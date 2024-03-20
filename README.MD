@@ -20,7 +20,6 @@
 ## TODO
 - [ ] Add stream category to the context
 - [ ] Fix slow mode
-- [ ] Update prints and logging
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Revamp authentication method

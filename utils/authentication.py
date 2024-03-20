@@ -1,3 +1,10 @@
+import asyncio
+import logging
+
+from models import Config
+
+from utils.functions import load_config, save_config
+
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException
@@ -48,12 +55,11 @@ async def authenticate():
                 refresh_token, config.twitch_api_client_id, config.twitch_api_client_secret)
     except (UnauthorizedException, InvalidRefreshTokenException):
         # Start authentication flow
-        print("Starting authentication flow...")
         auth = UserAuthenticator(twitch, scope, force_verify=True)
         try:
             twitch_user_token, refresh_token = await auth.authenticate()
-        except:
-            print("Authentication failed")
+        except Exception as e:
+            logging.error(f"Authentication failed: {e}")
             return
 
     # Set user authentication

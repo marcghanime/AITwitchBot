@@ -24,8 +24,15 @@ class TranscriptionServer(FfmpegBase):
         self.transcript_duration_limit = 180
 
         # subscribe to showtdown event
-        self.pubsub.subscribe(PubEvents.SHUTDOWN, self.stop)    
+        self.pubsub.subscribe(PubEvents.SHUTDOWN, self.stop)   
 
+        # WebSocket client
+        self.ws = None
+        self.ws_is_open = False 
+
+
+    # Open the WebSocket connection
+    def ws_open_connection(self):
         # Create the WebSocket client
         ws_url = self.create_ws_url()
         extra_headers={"Authorization": f"Token {os.environ['deepgram_api_key']}"}
@@ -38,13 +45,13 @@ class TranscriptionServer(FfmpegBase):
             on_close=lambda ws, close_status_code, close_msg: self.on_close(ws, close_status_code, close_msg)
         )
 
-
-    # Start transcibing the stream
-    def start(self):
         # start websocket client in a thread
         self.ws_thread = threading.Thread(target=self.ws.run_forever)
         self.ws_thread.start()
 
+
+    # Start transcibing the stream
+    def start(self):
         # Start the audio processing thread
         self.audio_processing_thread = threading.Thread(target=self.process_audio_frames)
         self.audio_processing_thread.start()
@@ -103,6 +110,14 @@ class TranscriptionServer(FfmpegBase):
                 # Read the audio stream
                 out_bytes = self.ffmpeg_process.stdout.read(4096 * 2)
 
+                # Start the ws here because of deepgram connection timeout
+                if self.ws is None:
+                    self.ws_open_connection()
+
+                # Wait until connection is open
+                if not self.ws_is_open:
+                    continue
+                
                 # Send the audio stream to the WebSocket server
                 self.ws.send(out_bytes, websocket.ABNF.OPCODE_BINARY)
 
@@ -115,6 +130,7 @@ class TranscriptionServer(FfmpegBase):
 
     # Handle the opening of the WebSocket connection
     def on_open(self, ws):
+        self.ws_is_open = True
         self.logger.debug("WebSocket connection opened.")
 
 

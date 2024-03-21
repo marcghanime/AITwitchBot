@@ -1,5 +1,6 @@
 import os
 import time
+import nltk
 import random
 
 from api.chat import ChatAPI
@@ -189,9 +190,22 @@ class BotAPI:
         for segment in transcript[:-1]:
             # check if the bot was mentioned
             if self.mentioned(os.environ["target_channel"], segment['text']):
-                # send a response to the chat
-                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the audio transcript. Try to only respond/react to what they said to/about you."
+                # get the transcript text
+                transcript_text = "".join([segment['text'] for segment in transcript])
+
+                # extract the sentences from the transcript
+                try:
+                    sentences = nltk.sent_tokenize(transcript_text)
+                except LookupError:
+                    nltk.download('punkt')
+                    sentences = nltk.sent_tokenize(transcript_text)
                 
+                # get the sentences that mention the bot
+                mentioned_sentences = [sentence for sentence in sentences if self.mentioned(os.environ["target_channel"], sentence)]
+                
+                # create the message
+                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the following sentences {mentioned_sentences}. Try to only respond/react to what they said to/about you."        
+
                 # create a placeholder chat message 
                 chat_message = Message(os.environ["target_channel"], message)
 

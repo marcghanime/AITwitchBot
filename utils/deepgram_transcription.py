@@ -118,6 +118,12 @@ class TranscriptionServer(FfmpegBase):
                 if not self.ws_is_open:
                     continue
                 
+                # Check if the connection is still open
+                if not self.ws.sock.connected:
+                    # reset the connection
+                    self.ws_is_open = False
+                    self.ws_open_connection()
+                
                 # Send the audio stream to the WebSocket server
                 self.ws.send(out_bytes, websocket.ABNF.OPCODE_BINARY)
 

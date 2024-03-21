@@ -202,9 +202,15 @@ class BotAPI:
                 
                 # get the sentences that mention the bot
                 mentioned_sentences = [sentence for sentence in sentences if self.mentioned(os.environ["target_channel"], sentence)]
-                
+
+                # add the sentence before and after the mentioned sentence
+                react_sentences = []
+                for sentence in mentioned_sentences:
+                    index = sentences.index(sentence)
+                    react_sentences.append(f"{sentences[index-1]} {sentence} {sentences[index+1]}")
+
                 # create the message
-                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the following sentences {mentioned_sentences}. Try to only respond/react to what they said to/about you."        
+                message = f"{os.environ['target_channel']} talked to/about you ({os.environ['bot_username']}) in the following sentences {react_sentences}. Try to only respond/react to what they said to/about you."        
 
                 # create a placeholder chat message 
                 chat_message = Message(os.environ["target_channel"], message)

@@ -1,18 +1,13 @@
+import json
 import asyncio
 import logging
+import dataclasses
 
 from models import Config
-
-from utils.functions import load_config, save_config
 
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator, refresh_access_token
 from twitchAPI.type import AuthScope, UnauthorizedException, InvalidRefreshTokenException
-
-from models import Config
-import json
-import dataclasses
-import asyncio
 
 def load_config() -> Config:
     try:

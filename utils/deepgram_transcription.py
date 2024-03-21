@@ -79,7 +79,7 @@ class TranscriptionServer(FfmpegBase):
         # Add keywords
         keywords = [os.environ['bot_username'], os.environ['target_channel']]
         for keyword in keywords:
-            ws_url += f"&keywords={keyword}"
+            ws_url += f"&keywords={keyword}:2"
 
         return ws_url
 

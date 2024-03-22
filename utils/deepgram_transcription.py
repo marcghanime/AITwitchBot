@@ -28,7 +28,10 @@ class TranscriptionServer(FfmpegBase):
 
         # WebSocket client
         self.ws = None
-        self.ws_is_open = False 
+        self.ws_is_open = False
+
+        # Open the WebSocket connection
+        self.ws_open_connection()
 
 
     # Open the WebSocket connection
@@ -48,6 +51,25 @@ class TranscriptionServer(FfmpegBase):
         # start websocket client in a thread
         self.ws_thread = threading.Thread(target=self.ws.run_forever)
         self.ws_thread.start()
+
+
+    def check_ws_connection(self) -> bool:
+        # Start the ws here because of deepgram connection timeout
+        if self.ws is None:
+            self.ws_open_connection()
+
+        # Wait until connection is open
+        if not self.ws_is_open:
+            return False
+        
+        # Check if the connection is still open
+        if self.ws.sock is None or not self.ws.sock.connected:
+            # reset the connection
+            self.ws_is_open = False
+            self.ws_open_connection()
+            return False
+        
+        return True
 
 
     # Start transcibing the stream
@@ -110,19 +132,9 @@ class TranscriptionServer(FfmpegBase):
                 # Read the audio stream
                 out_bytes = self.ffmpeg_process.stdout.read(4096 * 2)
 
-                # Start the ws here because of deepgram connection timeout
-                if self.ws is None:
-                    self.ws_open_connection()
-
-                # Wait until connection is open
-                if not self.ws_is_open:
+                # Check if the WebSocket connection is open
+                if not self.check_ws_connection():
                     continue
-                
-                # Check if the connection is still open
-                if not self.ws.sock.connected:
-                    # reset the connection
-                    self.ws_is_open = False
-                    self.ws_open_connection()
                 
                 # Send the audio stream to the WebSocket server
                 self.ws.send(out_bytes, websocket.ABNF.OPCODE_BINARY)

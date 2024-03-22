@@ -9,7 +9,7 @@ from utils.stream import Stream
 from utils.models import Config, Memory
 from utils.pubsub import PubSub, PubEvents
 from utils.deepgram_transcription import TranscriptionServer
-from utils.functions import load_config, save_config, load_memory, save_memory, set_environ
+from utils.functions import load_config, save_config, load_memory, save_memory, set_environ, setup_logging
 
 
 class CLI:
@@ -20,9 +20,9 @@ class CLI:
 
     stop_event = threading.Event()
     audio_captions: str = ""
-
+    
+    setup_logging()
     logger = logging.getLogger('main')
-    logging.basicConfig(level=logging.INFO)
 
     def __init__(self):
         # Register shutdown handler

@@ -2,6 +2,8 @@ import os
 import re
 import sys
 import json
+import time
+import logging
 import dataclasses
 
 from utils.models import Config, Memory
@@ -161,3 +163,15 @@ def load_memory() -> Memory:
 def save_memory(memory: Memory) -> None:
     with open("memory.json", "w") as outfile:
         json.dump(dataclasses.asdict(memory), outfile, indent=4)
+
+
+def setup_logging(level: int = logging.DEBUG):
+    # Create the directory if it does not exist
+    log_dir = 'logs'
+    os.makedirs(log_dir, exist_ok=True) 
+
+    # Get the current time as a string
+    current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Set up logging
+    logging.basicConfig(filename=f'logs/{current_time}.log', filemode='w', level=level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -1,14 +1,15 @@
 import os
 import json
 import time
-from typing import List
 
+from typing import List
 from openai import OpenAI
 
 from api.image import ImageAPI
+
 from utils.models import Memory, Message
-from utils.functions import clean_message, clean_conversation
 from utils.pubsub import PubSub, PubEvents
+from utils.functions import clean_message, clean_conversation
 
 class ChatAPI:
     pubsub: PubSub

@@ -65,6 +65,7 @@ def check_banned_words(message: str, banned_words: list):
 def clean_conversation(messages: list):
     messages = remove_old_images(messages)
     messages = remove_old_contexts(messages)
+    messages = fix_responses_format(messages)
     return messages
 
 
@@ -102,6 +103,27 @@ def remove_old_contexts(messages: list):
 
         # update the message content in the messages list
         messages[i]["content"] = text.strip().strip("\n")
+
+    return messages
+
+
+# Remove the 'Reply to the following message' text from the start of users responses
+def fix_responses_format(messages: list):
+    # iterate through the messages with index
+    for i, message in enumerate(messages):
+        # skip non user messages
+        role = message.get("role")
+        if role != "user":
+            continue
+
+        # get the message content
+        text: str = message.get("content")
+
+        # remove the unwanted text from the start of the message
+        text = text.replace("Reply to the following chat message ", "").strip("'")
+
+        # update the message content in the messages list
+        messages[i]["content"] = text
 
     return messages
 

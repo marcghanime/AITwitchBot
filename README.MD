@@ -25,7 +25,6 @@
 - [ ] Implement RAG for chat history and transcripts
 - [ ] Add 7tv emote support
 - [ ] Revamp authentication method
-- [ ] Maybe add google or bing search bot function
 - [ ] Add following and other common commands as bot functions
 
 ## Config File
@@ -41,6 +40,8 @@
 | **openai_api_key** | must fill | The openai api key [Get it here](https://platform.openai.com/account/api-keys) |
 | **shazam_api_key** | must fill | The shazam api key [Get it here](https://rapidapi.com/apidojo/api/shazam) |
 | **deepgram_api_key** | must fill | The deepgram api key [Get it here](https://console.deepgram.com) |
+| **google_api_key** | must fill | The google api key [Get it here](https://console.cloud.google.com/apis/credentials) |
+| **google_cse_id** | must fill | The google custom search engine id [Get it here](https://cse.google.com/cse/all) |
 
 ## Commands 
 The following commands are available to **admin**, **streamer** and **mods** via twitch whispers to the bot:

@@ -1,7 +1,9 @@
 import os
 import time
 import nltk
+import json
 import random
+import requests
 
 from api.chat import ChatAPI
 from api.shazam import ShazamAPI
@@ -15,13 +17,33 @@ from twitchAPI.chat import WhisperEvent, ChatUser
 
 BOT_FUNCTIONS = [
     {
-        "name": "recognize_song",
-        "description": "Recognize/identify/detect the song currently playing in the stream",
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        } 
+        "type": "function",
+        "function": {
+            "name": "recognize_song",
+            "description": "Recognize/identify/detect the song currently playing in the stream",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            } 
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "google_search",
+            "description": "Search the web using Google for information. Use when explicitly asked to google or to search for information.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query",
+                    }
+                },
+                "required": ["query"],
+            }
+        }
     }
 ]
 
@@ -80,7 +102,7 @@ class BotAPI:
         message = chat_message.text
         
         # ignore short messages
-        if len(message.split(" ")) <= 3:
+        if len(message.split(" ")) < 3:
             return
 
         if self.mentioned(username, message) and self.moderation(username):
@@ -226,15 +248,31 @@ class BotAPI:
 
 
     # Callback for when the ai calls a function
-    def bot_functions_callback(self, function_name: str, chat_message: Message):
+    def bot_functions_callback(self, function_name: str, arguments: str, chat_message: Message):
+        # Parse the arguments
+        args = json.loads(arguments)
+
         if function_name == "recognize_song":
+            # Inform the user that the bot is listening
             self.twitch_api.send_message(f"@{chat_message.username} I'm listening... give me ~10 seconds") 
+            
+            # Recognize the song and get the result
             result = self.recognize_song()
+
+            # Send the result to the chat
             self.twitch_api.send_message(f"@{chat_message.username} {result}")
         
-        elif function_name == "ignore_user":
-            self.memory.banned_users.append(chat_message.username)
-            self.twitch_api.send_message(f"@{chat_message.username} I'll ignore you from now on")
+        elif function_name == "google_search":
+            # Search the web using Google
+            query = args["query"]
+            results = self.search_google(query)
+
+            # Get a response with the search results
+            message = f"{chat_message.text}. The google search results are: {results}"
+            response = self.chat_api.get_ai_response(Message(chat_message.username, message), with_tools=False)
+
+            # Send the response to the chat
+            self.twitch_api.send_message(f"@{chat_message.username} {response}")
     
 
     # Recognize the song currently playing in the stream
@@ -256,6 +294,18 @@ class BotAPI:
         else:
             return f"I think the song playing is {result}"
         
+
+    # Search the web using Google
+    def search_google(self, query: str):
+        url = f"https://www.googleapis.com/customsearch/v1?q={query}&key={os.environ['google_api_key']}&cx={os.environ['google_cse_id']}&start=1"
+        response = requests.get(url)
+        data = response.json()
+
+        # Extract snippets from the search results
+        snippets = [item.get("snippet", "") for item in data.get("items", [])]
+
+        return snippets
+
 
     # Handles commands sent to the bot
     def handle_command(self, whisper: WhisperEvent) -> None:

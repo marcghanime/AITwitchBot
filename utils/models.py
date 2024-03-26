@@ -13,6 +13,8 @@ class Config:
     openai_api_key: str = ""
     shazam_api_key: str = ""
     deepgram_api_key: str = ""
+    google_api_key: str = ""
+    google_cse_id: str = ""
 
 
 @dataclass

@@ -18,6 +18,7 @@
 - To input a [command](#commands) send a whisper to the bot through twitch.
 
 ## TODO
+- [ ] Auto start the bot on stream start
 - [ ] Add other deepgram keywords option
 - [ ] Run pubsub callback asynchronously
 - [ ] Add stream category to the context

@@ -250,8 +250,8 @@ class ChatAPI:
 
     # Clear the conversation with the user from the memory
     def clear_user_conversation(self, username: str):
-        if username in self.memory.conversations:
-            del self.memory.conversations[username]
+        if username.lower() in self.memory.conversations:
+            del self.memory.conversations[username.lower()]
 
 
     # Use a screenshot of the stream to get more context/information on what is shown/happening

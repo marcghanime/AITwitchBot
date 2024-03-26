@@ -66,6 +66,7 @@ def clean_conversation(messages: list):
     messages = remove_old_images(messages)
     messages = remove_old_contexts(messages)
     messages = fix_responses_format(messages)
+    messages = remove_null_messages(messages)
     return messages
 
 
@@ -128,6 +129,10 @@ def fix_responses_format(messages: list):
     return messages
 
 
+def remove_null_messages(messages: list):
+    return [message for message in messages if message.get("content")]
+
+
 # Set the environment variables
 def set_environ(config: Config):
     # For each key, value pair in the config, set them as environment variables
@@ -183,6 +188,11 @@ def load_memory() -> Memory:
 
 # Save memory to json file
 def save_memory(memory: Memory) -> None:
+    # Clean all conversations
+    for user, conversation in memory.conversations.items():
+        memory.conversations[user] = clean_conversation(conversation)
+
+    # Save the memory to the json file
     with open("memory.json", "w") as outfile:
         json.dump(dataclasses.asdict(memory), outfile, indent=4)
 

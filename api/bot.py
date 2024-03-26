@@ -102,7 +102,7 @@ class BotAPI:
         message = chat_message.text
         
         # ignore short messages
-        if len(message.split(" ")) < 3:
+        if len(message.split(" ")) <= 3:
             return
 
         if self.mentioned(username, message) and self.moderation(username):
@@ -113,7 +113,7 @@ class BotAPI:
         elif self.react() and self.moderation():
             chat_message.text = self.react_string
             self.send_response(chat_message, react=True)
-            self.memory.reaction_time = time.time() + random.randint(300, 600)  # 10-15 minutes
+            self.memory.reaction_time = time.time() + random.randint(600, 900)  # 10-15 minutes
 
         elif self.engage(message) and self.moderation(username):
             chat_message.text = f"@{os.environ['target_channel']} {message}"

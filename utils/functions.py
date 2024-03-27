@@ -63,10 +63,10 @@ def check_banned_words(message: str, banned_words: list):
 
 # Clean the conversation history
 def clean_conversation(messages: list):
+    messages = remove_null_messages(messages)
     messages = remove_old_images(messages)
     messages = remove_old_contexts(messages)
     messages = fix_responses_format(messages)
-    messages = remove_null_messages(messages)
     return messages
 
 

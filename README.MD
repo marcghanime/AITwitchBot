@@ -1,5 +1,7 @@
 # TwitchBot
 
+This is a twitch ai bot that is able to read chat, listen and see the stream. This started as a fun project but i if you want to contribute feel free :)
+
 ## :warning: Warning
 - The twitch account for the bot needs to have a verified phone number to be able to send whispers.
 

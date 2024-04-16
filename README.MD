@@ -1,4 +1,4 @@
-# TwitchBot
+# AI Twitch Bot
 
 This is a twitch ai bot that is able to read chat, listen and see the stream. This started as a fun project but i if you want to contribute feel free :)
 
